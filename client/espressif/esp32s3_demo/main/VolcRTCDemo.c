@@ -283,6 +283,8 @@ static void byte_rtc_task(void *pvParameters) {
     byte_rtc_room_options_t options;
     options.auto_subscribe_audio = 1; // 接收远端音频
     options.auto_subscribe_video = 0; // 不接收远端视频
+    options.auto_publish_audio = 1;   // 发送音频
+    options.auto_publish_video = 1;   // 发送视频
     byte_rtc_join_room(engine, room_info->room_id, room_info->uid, room_info->token, &options);
     
     const int DEFAULT_READ_SIZE = recorder_pipeline_get_default_read_size(pipeline);
@@ -350,21 +352,8 @@ void app_main(void)
         return;
     }
 
-    size_t total = 0, used = 0;
-    ret = esp_littlefs_info(conf.partition_label, &total, &used);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
-        esp_littlefs_format(conf.partition_label);
-    } else {
-        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
-    }
-
-    ESP_LOGI(TAG, "[ 1 ] Mount sdcard");
     esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
-
-    // Initialize SD Card peripheral
-    audio_board_sdcard_init(set, SD_MODE_1_LINE);
 
     audio_board_handle_t board_handle = audio_board_init();   
     // audio_hal = board_handle->audio_hal;

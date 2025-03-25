@@ -1,0 +1,38 @@
+From 622c7eb210d643736a4e6f01fdcee493c79c268e Mon Sep 17 00:00:00 2001
+From: yuhuawei <yuhuawei.123@bytedance.com>
+Date: Tue, 25 Mar 2025 16:19:23 +0800
+Subject: [PATCH] fix: disable volc engine in esp
+
+---
+ components/clouds/CMakeLists.txt | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/components/clouds/CMakeLists.txt b/components/clouds/CMakeLists.txt
+index 4a886f16..821ab7ab 100644
+--- a/components/clouds/CMakeLists.txt
++++ b/components/clouds/CMakeLists.txt
+@@ -3,7 +3,7 @@ if (DEFINED ENV{DUER_PATH})
+     return()
+ endif()
+ 
+-set(COMPONENT_ADD_INCLUDEDIRS ./dueros/lightduer/include ./volc_engine_rtc/include)
++set(COMPONENT_ADD_INCLUDEDIRS ./dueros/lightduer/include)
+ 
+ # Edit following two lines to set component requirements (see docs)
+ set(COMPONENT_SRCS)
+@@ -14,9 +14,9 @@ target_link_libraries(${COMPONENT_TARGET} INTERFACE "-L${CMAKE_CURRENT_LIST_DIR}
+ 
+ IF ((CONFIG_IDF_TARGET STREQUAL "esp32s3"))
+ IF (IDF_VERSION_MAJOR EQUAL 5)
+-add_prebuilt_library(VolcEngineRTCLite "${CMAKE_CURRENT_LIST_DIR}/volc_engine_rtc/libs/${CONFIG_IDF_TARGET}/libVolcEngineRTCLite.a"
+-                    REQUIRES mbedtls espressif__zlib json lwip)
+-target_link_libraries(${COMPONENT_LIB} INTERFACE VolcEngineRTCLite)
++    #add_prebuilt_library(VolcEngineRTCLite "${CMAKE_CURRENT_LIST_DIR}/volc_engine_rtc/libs/${CONFIG_IDF_TARGET}/libVolcEngineRTCLite.a"
++    #               REQUIRES mbedtls espressif__zlib json lwip)
++    # target_link_libraries(${COMPONENT_LIB} INTERFACE VolcEngineRTCLite)
+ ENDIF()
+ ENDIF()
+  
+-- 
+2.44.0
+
