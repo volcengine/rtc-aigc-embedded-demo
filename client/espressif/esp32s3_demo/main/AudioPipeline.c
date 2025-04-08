@@ -22,10 +22,6 @@
 
 #include "esp_timer.h"
 
-#define CONFIG_CHOICE_G711A_ENCODER 1
-// #define CONFIG_CHOICE_OPUS_ENCODER 1
-// #define CONFIG_CHOICE_AAC_ENCODER 1
-#define CONFIG_AUDIO_SUPPORT_G711A_DECODER 1
 
 #if defined (CONFIG_CHOICE_OPUS_ENCODER)
 #include "opus_encoder.h"
@@ -208,6 +204,8 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     sample_rate = SAMPLE_RATE;
 #elif defined(CONFIG_CHOICE_G711A_ENCODER)
     sample_rate = 8000;
+#elif defined(CONFIG_CHOICE_G711A_INTERNAL)
+    sample_rate = 8000;
 #endif
 
     i2s_stream_set_channel_type(&i2s_cfg, channel_format);
@@ -261,9 +259,11 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     const char *link_tag[3] = {"i2s", "aac", "raw"};
 #elif defined (CONFIG_CHOICE_G711A_ENCODER)
     const char *link_tag[4] = {"i2s", "algo", "g711a", "raw"};
+#elif defined (CONFIG_CHOICE_G711A_INTERNAL)
+    const char *link_tag[3] = {"i2s", "algo", "raw"};
 #endif
 
-    audio_pipeline_link(pipeline->audio_pipeline, &link_tag[0], 4);
+    audio_pipeline_link(pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
     // i2s_stream_set_clk(pipeline->i2s_stream_reader, 8000, 16, 2);
     return pipeline;
 }
@@ -299,6 +299,8 @@ int recorder_pipeline_get_default_read_size(recorder_pipeline_handle_t pipeline)
         return -1;//
     #elif defined (CONFIG_CHOICE_G711A_ENCODER)
         return 160;
+    #elif defined (CONFIG_CHOICE_G711A_INTERNAL)
+        return 320;
     #endif
 };
 
@@ -401,12 +403,18 @@ player_pipeline_handle_t player_pipeline_open(void) {
 
     ESP_LOGI(TAG, "[3.4] Register all elements to audio pipeline");
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->raw_writer, "raw");
+#ifndef CONFIG_CHOICE_G711A_INTERNAL
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->audio_decoder, "dec");
+#endif
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer, "i2s");
 
     ESP_LOGI(TAG, "[3.5] Link it together raw-->audio_decoder-->i2s_stream-->[codec_chip]");
+#if defined (CONFIG_CHOICE_G711A_INTERNAL)
+    const char *link_tag[2] = {"raw", "i2s"};
+#else
     const char *link_tag[3] = {"raw", "dec", "i2s"};
-    audio_pipeline_link(player_pipeline->audio_pipeline, &link_tag[0], 3);
+#endif
+    audio_pipeline_link(player_pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
 
     audio_board_handle_t board_handle = audio_board_init();
     audio_hal_set_volume(board_handle->audio_hal, 100);
@@ -427,7 +435,9 @@ void player_pipeline_close(player_pipeline_handle_t player_pipeline){
 
     audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->raw_writer);
     audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer);
+#ifndef CONFIG_CHOICE_G711A_INTERNAL
     audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->audio_decoder);
+#endif
 
     /* Terminal the pipeline before removing the listener */
     // audio_pipeline_remove_listener(pipeline);
@@ -443,7 +453,9 @@ void player_pipeline_close(player_pipeline_handle_t player_pipeline){
     audio_pipeline_deinit(player_pipeline->audio_pipeline);
     audio_element_deinit(player_pipeline->raw_writer);
     audio_element_deinit(player_pipeline->i2s_stream_writer);
+#ifndef CONFIG_CHOICE_G711A_INTERNAL
     audio_element_deinit(player_pipeline->audio_decoder);
+#endif
     player_thread_data_stop(player_pipeline->thread_data);
     player_thread_data_destory(player_pipeline->thread_data);
     heap_caps_free(player_pipeline);

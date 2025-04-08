@@ -13,6 +13,12 @@
 extern "C" {
 #endif
 
+#define CONFIG_CHOICE_G711A_ENCODER 1
+// #define CONFIG_CHOICE_OPUS_ENCODER 1
+// #define CONFIG_CHOICE_AAC_ENCODER 1
+#define CONFIG_AUDIO_SUPPORT_G711A_DECODER 1
+// #define CONFIG_CHOICE_G711A_INTERNAL 1
+
 struct recorder_pipeline_t;
 typedef struct recorder_pipeline_t recorder_pipeline_t,*recorder_pipeline_handle_t;
 recorder_pipeline_handle_t recorder_pipeline_open();

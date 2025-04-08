@@ -92,7 +92,6 @@ static void byte_rtc_on_room_error(byte_rtc_engine_t engine, const char* channel
 static void byte_rtc_on_audio_data(byte_rtc_engine_t engine, const char* channel, const char*  uid , uint16_t sent_ts,
                       audio_codec_type_e codec, const void* data_ptr, size_t data_len){
     // ESP_LOGI(TAG, "byte_rtc_on_audio_data... len %d\n", data_len);
-
     engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
     player_pipeline_write(context->player_pipeline, data_ptr, data_len);
 
@@ -267,7 +266,10 @@ static void byte_rtc_task(void *pvParameters) {
 
     byte_rtc_engine_t engine = byte_rtc_create(room_info->app_id, &handler);
     byte_rtc_set_log_level(engine, BYTE_RTC_LOG_LEVEL_ERROR);
-    byte_rtc_set_params(engine, "{\"debug\":{\"log_to_console\":1}}"); 
+    byte_rtc_set_params(engine, "{\"debug\":{\"log_to_console\":1}}");
+#ifdef CONFIG_CHOICE_G711A_INTERNAL
+    byte_rtc_set_params(engine,"{\"audio\":{\"codec\":{\"internal\":{\"enable\":1}}}}");
+#endif
 
     byte_rtc_init(engine);
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G711A);
@@ -299,7 +301,11 @@ static void byte_rtc_task(void *pvParameters) {
         int ret =  recorder_pipeline_read(pipeline, (char*) audio_buffer, DEFAULT_READ_SIZE);
         if (ret == DEFAULT_READ_SIZE && joined) {
             // push_audio data
+#ifdef CONFIG_CHOICE_G711A_INTERNAL
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCM};
+#else
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCMA};
+#endif
             byte_rtc_send_audio_data(engine, room_info->room_id, audio_buffer, DEFAULT_READ_SIZE, &audio_frame_info);
         }
     }
