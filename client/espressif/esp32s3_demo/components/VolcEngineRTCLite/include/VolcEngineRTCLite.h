@@ -395,7 +395,12 @@ typedef enum {
      * @brief PCMA
      */
     AUDIO_DATA_TYPE_PCMA    = 4,
-   
+
+    /**
+     * @locale zh
+     * @brief PCM
+     */
+    AUDIO_DATA_TYPE_PCM = 5,
 } audio_data_type_e;
 
 /**
@@ -641,12 +646,12 @@ void (*on_key_frame_gen_req)(byte_rtc_engine_t engine,const char * room, const c
  * @param room 房间名
  * @param uid 远端用户名
  * @param sent_ts 发送时间 （暂不支持）
- * @param codec 音频编码类型，参看 audio_codec_type_e{@link #audio_codec_type_e}
+ * @param data 音频数据类型，参看 audio_data_type_e{@link #audio_data_type_e}
  * @param data_ptr 音频数据
  * @param data_len 音频数据长度，单位字节
  */
 void (*on_audio_data)(byte_rtc_engine_t engine,const char * room, const char * uid ,uint16_t sent_ts,
-                      audio_codec_type_e codec, const void * data_ptr, size_t data_len);
+    audio_data_type_e codec, const void * data_ptr, size_t data_len);
 
 /**
  * @locale zh
