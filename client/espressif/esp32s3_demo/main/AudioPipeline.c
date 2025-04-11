@@ -164,12 +164,13 @@ static audio_element_handle_t create_algo_stream(void)
 {
     ESP_LOGI(TAG, "[3.1] Create algorithm stream for aec");
     algorithm_stream_cfg_t algo_config = ALGORITHM_STREAM_CFG_DEFAULT();
-    algo_config.swap_ch = true;
-    algo_config.sample_rate = 8000;
+    // algo_config.swap_ch = true;
+    algo_config.sample_rate = 16000;
     algo_config.out_rb_size = 256;
     algo_config.algo_mask = ALGORITHM_STREAM_DEFAULT_MASK | ALGORITHM_STREAM_USE_AGC;
+    algo_config.input_format = "RM";
     audio_element_handle_t element_algo = algo_stream_init(&algo_config);
-    audio_element_set_music_info(element_algo, 8000, 1, 16);
+    audio_element_set_music_info(element_algo, 16000, 1, 16);
     audio_element_set_input_timeout(element_algo, portMAX_DELAY);
     return element_algo;
 }
@@ -187,7 +188,12 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set(TAG, ESP_LOG_INFO);
     // es7210_mic_select(ES7210_INPUT_MIC1 | ES7210_INPUT_MIC3);
+#if 0
     es7210_adc_set_gain(ES7210_INPUT_MIC3, GAIN_0DB);
+#else
+    es7210_adc_set_gain(ES7210_INPUT_MIC3, GAIN_0DB);
+    es7210_adc_set_gain(ES7210_INPUT_MIC2 | ES7210_INPUT_MIC1, GAIN_33DB);
+#endif
 
     ESP_LOGI(TAG, "[3.0] Create audio pipeline for recording");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -417,7 +423,7 @@ player_pipeline_handle_t player_pipeline_open(void) {
     audio_pipeline_link(player_pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
 
     audio_board_handle_t board_handle = audio_board_init();
-    audio_hal_set_volume(board_handle->audio_hal, 100);
+    audio_hal_set_volume(board_handle->audio_hal, 50);
 
     // i2s_stream_set_clk(player_pipeline->i2s_stream_writer, 8000, 16, 1);
     return player_pipeline;

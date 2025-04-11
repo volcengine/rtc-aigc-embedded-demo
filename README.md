@@ -95,7 +95,8 @@ python3 RtcAigcService.py
     brew install cmake ninja dfu-util
     ```
 
-2. 将 乐鑫 ADF 框架克隆到本地，并同步各子仓（submodule）代码
+2. 将 乐ixin ADF 框架克隆到本地，并同步各子仓（submodule）代码
+> **注意：** demo 中使用的 ADF 版本为 [0d76650198ca96546c40d10a7ce8963bacdf820b], 对应 IDF 版本为 [v5.4], 请确保 ADF 版本与 IDF 版本匹配。
     1. clone 乐鑫ADF 框架
 
     ```shell
@@ -185,9 +186,7 @@ python3 RtcAigcService.py
 
 #### 编译固件
 
-1. 打开 `esp-adf/examples/rtc-aigc-embedded-demo/client/espressif/esp32s3_demo/sdkconfig`文件，在`CONFIG_EXAMPLE_WIFI_SSID`及`CONFIG_EXAMPLE_WIFI_PASSWORD`中填入你的 WIFI 账号和密码
-
-2. 进入`esp-adf/examples/rtc-aigc-embedded-demo/client/espressif/esp32s3_demo` 目录下编译固件
+1. 进入`esp-adf/examples/rtc-aigc-embedded-demo/client/espressif/esp32s3_demo` 目录下编译固件
     1. 进入 esp32s3_demo 目录
 
     ```shell
@@ -198,7 +197,12 @@ python3 RtcAigcService.py
     ```shell
     idf.py set-target esp32s3
     ```
-    3. 编译固件
+    3. 设置WIFI账号密码
+    ```shell
+    idf.py menuconfig
+    ```
+    进入 `Example Connection Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码。
+    4. 编译固件
 
     ```shell
     idf.py build
