@@ -90,11 +90,10 @@ static void byte_rtc_on_room_error(byte_rtc_engine_t engine, const char* channel
 
 // remote audio
 static void byte_rtc_on_audio_data(byte_rtc_engine_t engine, const char* channel, const char*  uid , uint16_t sent_ts,
-                      audio_codec_type_e codec, const void* data_ptr, size_t data_len){
+                      audio_data_type_e codec, const void* data_ptr, size_t data_len){
     // ESP_LOGI(TAG, "byte_rtc_on_audio_data... len %d\n", data_len);
     engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
     player_pipeline_write(context->player_pipeline, data_ptr, data_len);
-
 }
 
 // remote video
@@ -238,19 +237,20 @@ static void on_key_frame_gen_req(byte_rtc_engine_t engine, const char*  channel,
 
 static void byte_rtc_task(void *pvParameters) {
     rtc_room_info_t* room_info = heap_caps_malloc(sizeof(rtc_room_info_t),  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // step 1: start ai agent & get room info
     int start_ret = start_voice_bot(room_info);
     if (start_ret != 200) {
         ESP_LOGE(TAG, "Bot start Failed, ret = %d", start_ret);
         return;
     }
 
-    // start audio capture & play
+    // step 2: start audio capture & play
     recorder_pipeline_handle_t pipeline = recorder_pipeline_open();
     player_pipeline_handle_t player_pipeline = player_pipeline_open();
     recorder_pipeline_run(pipeline);
     player_pipeline_run(player_pipeline);
 
-    // 创建引擎，加入房间
+    // step 3: start byte rtc engine
     byte_rtc_event_handler_t handler = {
         .on_join_room_success       =   byte_rtc_on_join_room_success,
         .on_room_error              =   byte_rtc_on_room_error,
@@ -275,20 +275,20 @@ static void byte_rtc_task(void *pvParameters) {
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G711A);
     byte_rtc_set_video_codec(engine, VIDEO_CODEC_TYPE_H264);
 
-    // 设置上下文，便于在回调中获取上下文中的内容
     engine_context_t engine_context = {
         .player_pipeline = player_pipeline,
         .room_info = room_info
     };
     byte_rtc_set_user_data(engine, &engine_context);
 
+    // step 4: join room
     byte_rtc_room_options_t options;
     options.auto_subscribe_audio = 1; // 接收远端音频
     options.auto_subscribe_video = 0; // 不接收远端视频
     options.auto_publish_audio = 1;   // 发送音频
-    options.auto_publish_video = 1;   // 发送视频
+    options.auto_publish_video = 0;   // 发送视频
     byte_rtc_join_room(engine, room_info->room_id, room_info->uid, room_info->token, &options);
-    
+
     const int DEFAULT_READ_SIZE = recorder_pipeline_get_default_read_size(pipeline);
     uint8_t *audio_buffer = heap_caps_malloc(DEFAULT_READ_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!audio_buffer) {
@@ -296,7 +296,7 @@ static void byte_rtc_task(void *pvParameters) {
         return;
     }
 
-    // 发送音频数据，根据需要设置打断循环条件
+    // step 5: start sending audio data
     while (true) {
         int ret =  recorder_pipeline_read(pipeline, (char*) audio_buffer, DEFAULT_READ_SIZE);
         if (ret == DEFAULT_READ_SIZE && joined) {
@@ -310,18 +310,18 @@ static void byte_rtc_task(void *pvParameters) {
         }
     }
 
-    // 离开房间，销毁引擎
+    // step 6: leave room and destroy engine
     byte_rtc_leave_room(engine, room_info->room_id);
     usleep(1000 * 1000);
     byte_rtc_fini(engine);
     usleep(1000 * 1000);
     byte_rtc_destory(engine);
     
-    // 关闭智能体，如果不主动调用， 智能体会在远端离开后3分钟离开
+    // step 7: stop ai agent or it will not stop until 3 minutes
     stop_voice_bot(room_info);
     heap_caps_free(room_info);
 
-    // 关闭音频采播
+    // step 8: stop audio capture & play
     recorder_pipeline_close(pipeline);
     player_pipeline_close(player_pipeline);
     ESP_LOGI(TAG, "............. finished\n");
@@ -362,11 +362,8 @@ void app_main(void)
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
 
     audio_board_handle_t board_handle = audio_board_init();   
-    // audio_hal = board_handle->audio_hal;
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
-    ESP_LOGI(TAG, "[2.1] audio_board & audio_board_key init");
-
-    audio_board_key_init(set);  // 在audio_hal.h 中修改默认音量AUDIO_HAL_VOL_DEFAULT  90    // ESP_LOGI(TAG, "[3.1] Create fatfs stream to write data to sdcard");
+    audio_hal_set_volume(board_handle->audio_hal, 60);
     ESP_LOGI(TAG, "Starting again!\n");
 
     // Allow other core to finish initialization

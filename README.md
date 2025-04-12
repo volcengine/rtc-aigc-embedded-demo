@@ -202,7 +202,12 @@ python3 RtcAigcService.py
     idf.py menuconfig
     ```
     进入 `Example Connection Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码。
-    4. 编译固件
+    4. 设置开发板型号
+    ```shell
+    idf.py menuconfig
+    ```
+    进入 `Audio HAL` 菜单，在 `Audio board` 中选择你的开发板型号。(例如: 方舟开发板选择 `M5STACK-ATOMS3R`)
+    5. 编译固件
 
     ```shell
     idf.py build
