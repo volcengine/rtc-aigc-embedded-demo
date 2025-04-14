@@ -184,6 +184,11 @@ python3 RtcAigcService.py
     git apply $ADF_PATH/examples/rtc-aigc-embedded-demo/0001-fix-disable-volc-engine-in-esp.patch
     ```
 
+    3. 更新AtomS3R开发板补丁
+    ```shell
+    git apply $ADF_PATH/examples/rtc-aigc-embedded-demo/0001-add-atoms3r-board.patch
+    ```
+
 #### 编译固件
 
 1. 进入`esp-adf/examples/rtc-aigc-embedded-demo/client/espressif/esp32s3_demo` 目录下编译固件
@@ -201,12 +206,14 @@ python3 RtcAigcService.py
     ```shell
     idf.py menuconfig
     ```
-    进入 `Example Connection Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码。
+    进入 `Example Connection Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，并保存。
+
     4. 设置开发板型号
     ```shell
     idf.py menuconfig
     ```
-    进入 `Audio HAL` 菜单，在 `Audio board` 中选择你的开发板型号。(例如: 方舟开发板选择 `M5STACK-ATOMS3R`)
+    进入 `Audio HAL` 菜单，在 `Audio board` 中选择你的开发板型号。(例如: 方舟开发板选择 `M5STACK-ATOMS3R`)，并保存。
+
     5. 编译固件
 
     ```shell
