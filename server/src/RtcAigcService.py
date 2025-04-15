@@ -211,7 +211,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     ]
                 },
                 "SubtitleConfig" : {
-                    "DisableRTSSubtitle" : False,                        # 非必填，是否关闭房间内字幕回调，默认 false
+                    "DisableRTSSubtitle" : True,                        # 非必填，是否关闭房间内字幕回调，默认 false
                 },
             },
         }

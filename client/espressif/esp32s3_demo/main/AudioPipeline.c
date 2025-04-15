@@ -42,25 +42,26 @@
 #include "raw_stream.h"
 
 
-#define CHANNEL             1
-#define RECORD_TIME_SECONDS (10)
+#define CHANNEL                     1
+#define RECORD_TIME_SECONDS         (10)
 static const char *TAG = "AUDIO_PIPELINE";
-
+#define I2S_SAMPLE_RATE             16000
+#define ALGO_SAMPLE_RATE            16000
 #ifdef CONFIG_ESP32_S3_KORVO2_V3_BOARD
 #define ALGORITHM_STREAM_SAMPLE_BIT 32
-#define CHANNEL_FORMAT I2S_CHANNEL_TYPE_ONLY_LEFT
-#define ALGORITHM_INPUT_FORMAT "RM"
-#define CHANNEL_NUM 1
+#define CHANNEL_FORMAT              I2S_CHANNEL_TYPE_ONLY_LEFT
+#define ALGORITHM_INPUT_FORMAT      "RM"
+#define CHANNEL_NUM                 1
 #elif CONFIG_M5STACK_ATOMS3R_BOARD
 #define ALGORITHM_STREAM_SAMPLE_BIT 16
-#define CHANNEL_FORMAT I2S_CHANNEL_TYPE_RIGHT_LEFT
-#define ALGORITHM_INPUT_FORMAT "MR"
-#define CHANNEL_NUM 2
+#define CHANNEL_FORMAT              I2S_CHANNEL_TYPE_RIGHT_LEFT
+#define ALGORITHM_INPUT_FORMAT      "MR"
+#define CHANNEL_NUM                 2
 #endif
 
 #if (CONFIG_CHOICE_OPUS_ENCODER)
 #define CODEC_NAME          "opus"
-#define SAMPLE_RATE         16000
+#define CODEC_SAMPLE_RATE   16000
 #define BIT_RATE            64000
 #define COMPLEXITY          10
 #define FRAME_TIME_MS       20 
@@ -69,14 +70,14 @@ static const char *TAG = "AUDIO_PIPELINE";
 #define DEC_BIT_RATE        64000
 #elif (CONFIG_CHOICE_AAC_ENCODER)
 #define CODEC_NAME          "aac"
-#define SAMPLE_RATE         16000
+#define CODEC_SAMPLE_RATE   16000
 #define BIT_RATE            80000
 #elif (CONFIG_CHOICE_G711A_ENCODER)
 #define CODEC_NAME          "g711a"
-#define SAMPLE_RATE         8000
+#define CODEC_SAMPLE_RATE   8000
 #elif (CONFIG_CHOICE_G711A_INTERNAL)
 #define CODEC_NAME          "g711a"
-#define SAMPLE_RATE         8000
+#define CODEC_SAMPLE_RATE   8000
 #endif
 
 #define CIRCLE_QUEUE_SIZE 100
@@ -190,12 +191,12 @@ static audio_element_handle_t create_algo_stream(void)
     ESP_LOGI(TAG, "[3.1] Create algorithm stream for aec");
     algorithm_stream_cfg_t algo_config = ALGORITHM_STREAM_CFG_DEFAULT();
     // algo_config.swap_ch = true;
-    algo_config.sample_rate = 16000;
+    algo_config.sample_rate = ALGO_SAMPLE_RATE;
     algo_config.out_rb_size = 256;
     algo_config.algo_mask = ALGORITHM_STREAM_DEFAULT_MASK | ALGORITHM_STREAM_USE_AGC;
     algo_config.input_format = ALGORITHM_INPUT_FORMAT;
     audio_element_handle_t element_algo = algo_stream_init(&algo_config);
-    audio_element_set_music_info(element_algo, 16000, 1, 16);
+    audio_element_set_music_info(element_algo, ALGO_SAMPLE_RATE, 1, 16);
     audio_element_set_input_timeout(element_algo, portMAX_DELAY);
     return element_algo;
 }
@@ -210,7 +211,7 @@ recorder_pipeline_handle_t recorder_pipeline_open()
 #if CONFIG_ESP32_S3_KORVO2_V3_BOARD
     es7210_adc_set_gain(ES7210_INPUT_MIC3, GAIN_30DB);
 #elif CONFIG_M5STACK_ATOMS3R_BOARD
-    es8311_set_mic_gain(ES8311_MIC_GAIN_24DB);
+    es8311_set_mic_gain(ES8311_MIC_GAIN_36DB);
 #endif
 
     ESP_LOGI(TAG, "[3.0] Create audio pipeline for recording");
@@ -219,16 +220,19 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     mem_assert(pipeline->audio_pipeline);
 
     ESP_LOGI(TAG, "[3.2] Create i2s stream to read audio data from codec chip");
-    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(CODEC_ADC_I2S_PORT, SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_READER);
+    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(CODEC_ADC_I2S_PORT, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_READER);
     i2s_cfg.type = AUDIO_STREAM_READER;
     i2s_stream_set_channel_type(&i2s_cfg, CHANNEL_FORMAT);
-    i2s_cfg.std_cfg.clk_cfg.sample_rate_hz = SAMPLE_RATE;
+    i2s_cfg.std_cfg.clk_cfg.sample_rate_hz = I2S_SAMPLE_RATE;
     pipeline->i2s_stream_reader = i2s_stream_init(&i2s_cfg);
     ESP_LOGI(TAG, "[3.3] Create audio encoder to handle data");
 
+    pipeline->rsp = create_resample_stream(I2S_SAMPLE_RATE, 1, CODEC_SAMPLE_RATE, 1);
+    audio_pipeline_register(pipeline->audio_pipeline, pipeline->rsp, "rsp");
+
 #if  defined (CONFIG_CHOICE_OPUS_ENCODER)
     raw_opus_enc_config_t opus_cfg = DEFAULT_OPUS_ENCODER_CONFIG();
-    opus_cfg.sample_rate        = SAMPLE_RATE;
+    opus_cfg.sample_rate        = CODEC_SAMPLE_RATE;
     opus_cfg.channel            = CHANNEL;
     opus_cfg.bitrate            = BIT_RATE;
     opus_cfg.complexity         = COMPLEXITY;
@@ -237,7 +241,7 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     const char *link_tag[] = {"i2s", "opus", "raw"};
 #elif defined (CONFIG_CHOICE_AAC_ENCODER)
     aac_encoder_cfg_t aac_cfg = DEFAULT_AAC_ENCODER_CONFIG();
-    aac_cfg.sample_rate        = SAMPLE_RATE;
+    aac_cfg.sample_rate        = CODEC_SAMPLE_RATE;
     aac_cfg.channel            = CHANNEL;
     aac_cfg.bitrate            = BIT_RATE;
     pipeline->audio_encoder = aac_encoder_init(&aac_cfg);
@@ -247,9 +251,9 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     g711_encoder_cfg_t g711_cfg = DEFAULT_G711_ENCODER_CONFIG();
     pipeline->audio_encoder = g711_encoder_init(&g711_cfg);
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
-    const char *link_tag[] = {"i2s", "algo", "g711a", "raw"};
+    const char *link_tag[] = {"i2s", "algo", "rsp", "g711a", "raw"};
 #elif defined (CONFIG_CHOICE_G711A_INTERNAL)
-    const char *link_tag[] = {"i2s", "algo", "raw"};
+    const char *link_tag[] = {"i2s", "algo", "rsp", "raw"};
 #endif
 
     ESP_LOGI(TAG, "[3.4] Register all elements to audio pipeline");
@@ -370,7 +374,7 @@ player_pipeline_handle_t player_pipeline_open(void) {
     player_pipeline->raw_writer = raw_stream_init(&raw_cfg);
 
     ESP_LOGI(TAG, "[3.2] Create i2s stream to write data to codec chip");
-    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(I2S_NUM_0, SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_WRITER);
+    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(I2S_NUM_0, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_WRITER);
     i2s_cfg.type = AUDIO_STREAM_WRITER;
 #ifdef CONFIG_ESP32_S3_KORVO2_V3_BOARD
     i2s_cfg.need_expand = (16 != 32);
@@ -379,13 +383,11 @@ player_pipeline_handle_t player_pipeline_open(void) {
     i2s_cfg.buffer_len = 1416;//708
     i2s_stream_set_channel_type(&i2s_cfg, CHANNEL_FORMAT);
     player_pipeline->i2s_stream_writer = i2s_stream_init(&i2s_cfg);
-    i2s_stream_set_clk(player_pipeline->i2s_stream_writer, SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, CHANNEL_NUM);
+    i2s_stream_set_clk(player_pipeline->i2s_stream_writer, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, CHANNEL_NUM);
 
-#ifdef CONFIG_M5STACK_ATOMS3R_BOARD
-    player_pipeline->rsp = create_resample_stream(SAMPLE_RATE, 1, SAMPLE_RATE, CHANNEL_NUM);
+    player_pipeline->rsp = create_resample_stream(CODEC_SAMPLE_RATE, 1, I2S_SAMPLE_RATE, CHANNEL_NUM);
     audio_element_set_output_timeout(player_pipeline->rsp, portMAX_DELAY);
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->rsp, "rsp");
-#endif
 
 #ifdef CONFIG_AUDIO_SUPPORT_OPUS_DECODER
     ESP_LOGI(TAG, "[3.3] Create opus decoder");
@@ -412,13 +414,9 @@ player_pipeline_handle_t player_pipeline_open(void) {
 
     ESP_LOGI(TAG, "[3.5] Link it together raw-->audio_decoder-->i2s_stream-->[codec_chip]");
 #if defined (CONFIG_CHOICE_G711A_INTERNAL)
-#if defined(CONFIG_ESP32_S3_KORVO2_V3_BOARD)
-    const char *link_tag[] = {"raw", "i2s"};
-#elif CONFIG_M5STACK_ATOMS3R_BOARD
     const char *link_tag[] = {"raw", "rsp", "i2s"};
-#endif
 #else
-    const char *link_tag[] = {"raw", "dec", "i2s"};
+    const char *link_tag[] = {"raw", "dec", "rsp", "i2s"};
 #endif
     audio_pipeline_link(player_pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
 
