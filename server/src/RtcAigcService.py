@@ -180,35 +180,6 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     ],
                     "HistoryLength": 3,                                  # 非必填，大模型上下文长度，默认 3。
                     "WelcomeSpeech": "你好有什么可以帮到你的吗",            # 非必填，智能体启动后的欢迎词。
-                    "Tools": [
-                        {
-                            "Type": "function",
-                            "function": {
-                                "name": "get_current_weather",
-                                "description": "获取给定地点的天气",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "location": {
-                                            "type": "string",
-                                            "description": "地理位置，比如北京市"
-                                        },
-                                        "unit": {
-                                            "type": "string",
-                                            "description": "",
-                                            "enum": [
-                                                "摄氏度",
-                                                "华氏度"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "location"
-                                    ]
-                                }
-                            }
-                        }
-                    ]
                 },
                 "SubtitleConfig" : {
                     "DisableRTSSubtitle" : True,                        # 非必填，是否关闭房间内字幕回调，默认 false
