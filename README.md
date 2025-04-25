@@ -123,7 +123,11 @@ python3 RtcAigcService.py
     ```shell
     cd esp-adf
     ```
-    3. 同步各子仓代码
+    3. 切换到乐鑫ADF指定版本
+    ```shell
+    git reset --hard 0d76650198ca96546c40d10a7ce8963bacdf820b
+    ```
+    4. 同步各子仓代码
 
     ```shell
     git submodule update --init --recursive
