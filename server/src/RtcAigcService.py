@@ -142,7 +142,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             "UserId" : room_info["uid"],                                 # RTC客户端用户id
             "config" : {
                 #  "BotName" : "",                                       # 非必填，RTC智能体用户id 
-                "IntterruptMode" : 0,                                    # 非必填，智能体对话打断模式。 0: 智能体语音可以被用户语音打断 1: 不能被用户语音打断
+                "InterruptMode" : 0,                                     # 非必填，智能体对话打断模式。 0: 智能体语音可以被用户语音打断 1: 不能被用户语音打断
                 "ASRConfig" : {
                     "AppId" : ASR_APP_ID,                                # ASR App ID
                     "Cluster" : "volcengine_streaming_common",           # ASR Cluster ID, 默认是通用的 cluster id "volcengine_streaming_common"
