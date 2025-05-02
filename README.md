@@ -111,7 +111,7 @@ python3 RtcAigcService.py
     brew install cmake ninja dfu-util
     ```
 
-2. 将 乐ixin ADF 框架克隆到本地，并同步各子仓（submodule）代码
+2. 将 乐鑫 ADF 框架克隆到本地，并同步各子仓（submodule）代码
 > **注意：** demo 中使用的 ADF 版本为 [0d76650198ca96546c40d10a7ce8963bacdf820b], 对应 IDF 版本为 [v5.4], 请确保 ADF 版本与 IDF 版本匹配。
     1. clone 乐鑫ADF 框架
 
