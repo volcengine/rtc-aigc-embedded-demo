@@ -259,5 +259,5 @@ python3 RtcAigcService.py
     ```
 
 ### 技术交流
-欢迎加入我们的技术交流群或提出Issue，一起探讨技术，一起学习进步。
-![技术交流群](resource/image/tech_support.png)
+ 欢迎加入我们的技术交流群或提出Issue，一起探讨技术，一起学习进步。
+<div align=center><img src="resource/image/tech_support.png" width="200"></div>
