@@ -85,9 +85,9 @@ int start_voice_bot(rtc_room_info_t* room_info) {
         const char* room_id = cJSON_GetStringValue(room_id_item);
         strcpy(room_info->room_id, room_id);
 
-        cJSON* token_item = cJSON_GetObjectItem(data, "task_id");
-        const char* task_id = cJSON_GetStringValue(token_item);
-        strcpy(room_info->task_id, token);
+        cJSON* task_id_item = cJSON_GetObjectItem(data, "task_id");
+        const char* task_id = cJSON_GetStringValue(task_id_item);
+        strcpy(room_info->task_id, task_id);
 
         cJSON* bot_uid_item = cJSON_GetObjectItem(data, "bot_uid");
         const char* bot_uid = cJSON_GetStringValue(bot_uid_item);
