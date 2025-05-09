@@ -27,7 +27,7 @@ static void impl_free_fn(void *ptr) {
 
 const char* common_headers[] = {
     "Content-Type", "application/json",
-    "Authorization", "af78e30" DEFAULT_RTC_APP_ID,
+    "Authorization", "af78e30" RTC_APP_ID,
     NULL
 };
 
@@ -44,8 +44,8 @@ int start_voice_bot(rtc_room_info_t* room_info) {
     
     char post_data[512];
     cJSON *post_jobj = cJSON_CreateObject();
-    cJSON_AddStringToObject(post_jobj, "bot_id", DEFAULT_BOT_ID);
-    cJSON_AddStringToObject(post_jobj, "voice_id", DEFAULT_VOICE_ID);
+    cJSON_AddStringToObject(post_jobj, "end_point_id", DEFAULT_END_POINT_ID);
+    cJSON_AddStringToObject(post_jobj, "voice_type", DEFAULT_VOICE_TYPE);
     const char* json_str = cJSON_Print(post_jobj);
     strcpy(post_data, json_str);
     cJSON_Delete(post_jobj);
@@ -85,6 +85,14 @@ int start_voice_bot(rtc_room_info_t* room_info) {
         const char* room_id = cJSON_GetStringValue(room_id_item);
         strcpy(room_info->room_id, room_id);
 
+        cJSON* token_item = cJSON_GetObjectItem(data, "task_id");
+        const char* task_id = cJSON_GetStringValue(token_item);
+        strcpy(room_info->task_id, token);
+
+        cJSON* bot_uid_item = cJSON_GetObjectItem(data, "bot_uid");
+        const char* bot_uid = cJSON_GetStringValue(bot_uid_item);
+        strcpy(room_info->bot_uid, bot_uid);
+
         cJSON* token_item = cJSON_GetObjectItem(data, "token");
         const char* token = cJSON_GetStringValue(token_item);
         strcpy(room_info->token, token);
@@ -110,7 +118,7 @@ int stop_voice_bot(const rtc_room_info_t* room_info) {
     cJSON *post_jobj = cJSON_CreateObject();
     cJSON_AddStringToObject(post_jobj, "app_id", room_info->app_id);
     cJSON_AddStringToObject(post_jobj, "room_id", room_info->room_id);
-    cJSON_AddStringToObject(post_jobj, "uid", room_info->uid);
+    cJSON_AddStringToObject(post_jobj, "task_id", room_info->task_id);
     
     const char* json_str = cJSON_Print(post_jobj);
     strcpy(post_data, json_str);
@@ -160,7 +168,7 @@ int update_voice_bot(const rtc_room_info_t* room_info, const char* command, cons
     cJSON *post_jobj = cJSON_CreateObject();
     cJSON_AddStringToObject(post_jobj, "app_id", room_info->app_id);
     cJSON_AddStringToObject(post_jobj, "room_id", room_info->room_id);
-    cJSON_AddStringToObject(post_jobj, "uid", room_info->uid);
+    cJSON_AddStringToObject(post_jobj, "task_id", room_info->task_id);
     cJSON_AddStringToObject(post_jobj, "command", command);
     if (message) {
         cJSON_AddStringToObject(post_jobj, "message", message);

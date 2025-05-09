@@ -28,7 +28,7 @@
 
 #### 硬件要求
 
-- PC服务器（Linux 建议使用 ubuntu18.04 及以上版本）
+- PC服务器（Linux 建议使用 ubuntu18.04 及以上版本， 服务端示例程序在 Windows 11 python 3.12, MacOs python 3.9, Ubuntu 24.04 python 3.12实测可以正常运行）
 
 #### 安装服务依赖
 
@@ -60,23 +60,28 @@ pip install requests
 
     ```python
     # 鉴权 AK/SK。前往 https://console.volcengine.com/iam/keymanage 获取
-    AK = "yzitS6Kx0x** ***fo08eYmYMhuTu"
-    SK = "xZN65nz0CFZ** ****lWcAGsQPqmk"
+    SK = "WmpCbVl6Y3hOR1JrT************1tTTRZalF4WW1FeE56WQ=="
+    AK = "AKLTNWQyODQ1MDM5Y***********WRmM2Y2NTJlMTQyZjI"
 
     # 实时音视频 App ID。前往 https://console.volcengine.com/rtc/listRTC 获取或创建
-    RTC_APP_ID = "678e1574** ***b9389357"
+    RTC_APP_ID = "67582ac8******0174410bd1"
     # 实时音视频 APP KEY。前往 https://console.volcengine.com/rtc/listRTC 获取
-    RTC_APP_KEY = "dc7f8939d23** *****bacf4a329"
+    RTC_APP_KEY = "1a6a03723c******222ada877ee13b"
 
     # 大模型推理接入点 EndPointId 前往 https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint?config=%7B%7D 创建
-    DEFAULT_BOT_ID = "ep-202** ****36-plsp5"
+    DEFAULT_END_POINT_ID = "ep-2025******160517-hlnzt"
     # 音频生成-语音合成 Voice_type，前往 https://console.volcengine.com/speech/service/8 获取
-    DEFAULT_VOICE_ID = "BV05** ****aming"
+    DEFAULT_VOICE_TYPE = "BV007_******ming"
 
     # 语音识别-流式语音识别 APPID 前往 https://console.volcengine.com/speech/service/16 获取
-    ASR_APP_ID = "274** **256"
+    ASR_APP_ID = "884***621"
+    # 语音识别-流式语音识别 ACCESS TOKEN 前往 https://console.volcengine.com/speech/service/16 获取
+    ASR_ACCESS_TOKEN = "M_X6X***BeXa1"
+
     # 音频生成-语音合成 APPID，前往 https://console.volcengine.com/speech/service/8 获取
-    TTS_APP_ID = "274** **256"
+    TTS_APP_ID = "884***9621"
+    # 音频生成-语音合成 ACCESS TOKEN，前往 https://console.volcengine.com/speech/service/8 获取
+    TTS_ACCESS_TOKEN = "M_X6X***BeXa1"
 
     # 服务端监听端口号,你可以根据实际业务需求设置端口号
     PORT = 8080
@@ -183,13 +188,13 @@ python3 RtcAigcService.py
     #define DEFAULT_SERVER_HOST "127.0.0.1:8080"
 
     // 服务端设置的大模型 EndPointId
-    #define DEFAULT_BOT_ID "ep-20240729** **** **"
+    #define DEFAULT_END_POINT_ID "ep-20240729** **** **"
 
     // 服务端设置的音频生成-语音合成 Voice_type
-    #define DEFAULT_VOICE_ID "zh_female_** *****"
+    #define DEFAULT_VOICE_TYPE "zh_female_** *****"
 
     // 服务端设置的实时音视频 APPID
-    #define DEFAULT_RTC_APP_ID "5c833ef** **** **"
+    #define RTC_APP_ID "5c833ef** **** **"
     ```
 
 3. 禁用乐鑫工程中的火山组件
@@ -257,7 +262,9 @@ python3 RtcAigcService.py
     ```shell
     idf.py monitor
     ```
+## 进阶阅读
+[服务端示例接口说明](server/src/README.md)
 
-### 技术交流
+## 技术交流
  欢迎加入我们的技术交流群或提出Issue，一起探讨技术，一起学习进步。
 <div align=center><img src="resource/image/tech_support.png" width="200"></div>
