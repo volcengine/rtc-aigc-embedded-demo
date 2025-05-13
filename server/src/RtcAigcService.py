@@ -188,12 +188,6 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 asr_provider_params["ApiResourceId"] = "volc.bigasr.sauc.concurrent"
                 asr_provider_params["StreamMode"] = 1
         
-        # 读取客户端传来的 interrupt_speech_duration
-        interrupt_speech_duration = 0
-        if "interrupt_speech_duration" in json_obj:
-            interrupt_speech_duration_client = int(json_obj["interrupt_speech_duration"])
-            if interrupt_speech_duration_client >= 200 and interrupt_speech_duration_client <= 3000:
-                interrupt_speech_duration = interrupt_speech_duration_client
         
 
         
@@ -284,26 +278,6 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                         "SilenceTime" : vad_silence_time                        # 人声检查判停时间。停顿时间若高于该值设定时间，则认为一句话结束。取值范围为 [500，3000)，单位为 ms，默认值为 600
                     },
                     "VolumeGain" : 0.3,                                         # 音量增益值。降低采集音量，以减少噪音引起的 ASR 错误识别。默认值 1.0，推荐值 0.3
-                    "InterruptConfig" : {
-                        "InterruptSpeechDuration" : interrupt_speech_duration,  # 自动打断触发阈值。房间内真人用户持续说话时间达到该参数设定值后，智能体自动停止输出。取值范围为0，[200，3000]，单位为 ms，值越大智能体说话越不容易被打断。默认值为 0，表示用户发出声音且包含真实语义时即打断智能体输出。
-                        "InterruptKeywords" : [                                 # 关键词打断。若用户说话内容包含任一传入关键词，智能体则立刻停止输出。
-                            "打断",
-                            "停一下",
-                            "打断一下",
-                            "插个话",
-                            "你先别说",
-                            "听我说",
-                            "你先不要说",
-                            "咳咳",
-                            "换个话题",
-                            "不要说了",
-                            "停下来",
-                            "闭嘴",
-                            "别说了",
-                            "安静",
-                            "停下来"
-                        ]
-                    },
                     "TurnDetectionMode" : 0                                     # 新一轮对话的触发方式。0：服务端检测到完整的一句话后，自动触发新一轮对话。1：收到输入结束信令或说话字幕结果后，你自行决定是否触发新一轮会话。
                 },
                 "TTSConfig" : {
