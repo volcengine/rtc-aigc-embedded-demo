@@ -19,7 +19,7 @@
     - 语音技术-音频生成-语音合成 Voice_type
     - 火山方舟大模型 EndPointId
   - 配置不同权限账号调用智能体, [创建角色](https://www.volcengine.com/docs/6348/1315561)
-  - 演示示例需要申请加入策略组。Demo目前仅支持G711A编码，需要发送邮件到[Conversational_AI@bytedance.com]，主题：“申请加入LLM策略组”内容：您的RTC_APP_ID。可申请多个RTC_APP_ID。如果自行实现OPUS编码，可以直接使用，无需加白
+  - [启用硬件场景配置](https://console.volcengine.com/rtc/aigc/cloudRTC)，并使用相应的房间规则
 
 ### 运行服务端
 
