@@ -3,8 +3,6 @@
 
 #include "AudioPipeline.h"
 #include <string.h>
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "audio_element.h"
@@ -15,8 +13,6 @@
 #include "board.h"
 #include "algorithm_stream.h"
 #include "filter_resample.h"
-// #include "esp_peripherals.h"
-// #include "periph_sdcard.h"
 #include "i2s_stream.h"
 #include "pthread.h"
 #ifdef CONFIG_ESP32_S3_KORVO2_V3_BOARD
@@ -43,7 +39,6 @@
 
 
 #define CHANNEL                     1
-#define RECORD_TIME_SECONDS         (10)
 static const char *TAG = "AUDIO_PIPELINE";
 #define I2S_SAMPLE_RATE             16000
 #define ALGO_SAMPLE_RATE            16000
@@ -80,50 +75,6 @@ static const char *TAG = "AUDIO_PIPELINE";
 #define CODEC_SAMPLE_RATE   8000
 #endif
 
-#define CIRCLE_QUEUE_SIZE 100
-typedef struct {
-    unsigned char * buffer;
-    int size;
-    bool is_ready;
-} queue_item,*queue_item_handle_t;
-
-typedef struct {
-    int read_index;
-    int write_index;
-    queue_item items[CIRCLE_QUEUE_SIZE];
-} circle_queue;
-
-int play_buffer_flag = 20;
-typedef struct  {
-    pthread_t thread;
-    int play_packet_count;
-    bool stoped;
-    circle_queue audio_queue;
-    void * user_data;
-} player_thread_data,*player_thread_data_handle_t;
-
-void circle_queue_init(circle_queue* queue) {
-    memset(queue, 0, sizeof(circle_queue));
-}
-
-void circle_queue_write(circle_queue* queue, unsigned char * buffer, int size) {
-    queue->items[queue->write_index].is_ready = false;
-    queue->items[queue->write_index].buffer = buffer;
-    queue->items[queue->write_index].size = size;
-    queue->items[queue->write_index].is_ready = true;
-    queue->write_index = (queue->write_index + 1) % CIRCLE_QUEUE_SIZE;
-}
-
-queue_item_handle_t circle_queue_read(circle_queue* queue) {
-    int read_index = queue->read_index;
-    if (queue->items[read_index].is_ready) {
-        queue->items[read_index].is_ready = false;
-        queue->read_index = (queue->read_index + 1) % CIRCLE_QUEUE_SIZE;
-        return (queue->items + read_index);
-    }
-    return NULL;
-}
-
 struct  recorder_pipeline_t {
     audio_pipeline_handle_t audio_pipeline;
     audio_element_handle_t i2s_stream_reader;
@@ -135,43 +86,11 @@ struct  recorder_pipeline_t {
 
 
 struct  player_pipeline_t {
-    player_thread_data_handle_t  thread_data;
     audio_pipeline_handle_t audio_pipeline;
     audio_element_handle_t raw_writer;
     audio_element_handle_t audio_decoder;
     audio_element_handle_t rsp;
     audio_element_handle_t i2s_stream_writer;
-};
-
-static void *player_thread(void * arg);
-
-player_thread_data_handle_t player_thread_data_create(void * user_data){
-    player_thread_data_handle_t handle = heap_caps_malloc(sizeof(player_thread_data), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
-    assert(handle != NULL);
-    circle_queue_init(&handle->audio_queue);
-    handle->stoped = false;
-    handle->play_packet_count = play_buffer_flag;
-    return handle;
-};
-
-void player_thread_data_destory(player_thread_data_handle_t handle) {
-    assert(handle != 0);
-    heap_caps_free(handle);
-};
-
-void player_thread_data_start(player_thread_data_handle_t handle) {
-    pthread_attr_t attr;
-    int res = pthread_attr_init(&attr);
-    assert(res == 0);
-    pthread_attr_setstacksize(&attr, 16384);
-    res = pthread_create(&handle->thread, &attr, player_thread, handle->user_data);
-    assert(res == 0);
-};
-
-void player_thread_data_stop(player_thread_data_handle_t handle) {
-    assert(handle != 0);
-    handle->stoped = true;
-    pthread_join(handle->thread,NULL);
 };
 
 static audio_element_handle_t create_resample_stream(int src_rate, int src_ch, int dest_rate, int dest_ch)
@@ -321,36 +240,6 @@ int recorder_pipeline_read(recorder_pipeline_handle_t pipeline,char *buffer, int
     return raw_stream_read(pipeline->raw_reader, buffer,buf_size);
 }
 
-static int64_t last_put_ts = 0;
-static void *player_thread(void * arg) {
-    player_pipeline_handle_t  player_pipeline = (player_pipeline_handle_t)(arg);
-    TickType_t delay = portMAX_DELAY;
-    unsigned char * buffer;
-    queue_item* qitem;
-    while (true) {
-        if (player_pipeline->thread_data->play_packet_count <= 0) {
-            qitem = circle_queue_read(&player_pipeline->thread_data->audio_queue);
-            if (qitem) {
-                if (qitem->buffer == (unsigned char*) (&play_buffer_flag)) {
-                    player_pipeline->thread_data->play_packet_count = play_buffer_flag;
-                } else {
-                    int64_t current_ts = esp_timer_get_time() /  1000;
-                    while (last_put_ts != 0 && current_ts - last_put_ts <= 16) {
-                        usleep(1000);
-                        current_ts = esp_timer_get_time() /  1000;
-                    }
-                    last_put_ts = current_ts;
-                    raw_stream_write(player_pipeline->raw_writer, qitem->buffer, qitem->size);
-                }
-            } else {
-                usleep(1000);
-            }
-        } else {
-            usleep(5000);
-        }
-    }
-}
-
 player_pipeline_handle_t player_pipeline_open(void) {
     player_pipeline_handle_t player_pipeline = heap_caps_malloc(sizeof(player_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
     esp_log_level_set("*", ESP_LOG_WARN);
@@ -358,10 +247,6 @@ player_pipeline_handle_t player_pipeline_open(void) {
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
 
     assert(player_pipeline != 0);
-    player_pipeline->thread_data = player_thread_data_create(player_pipeline);
-    assert(player_pipeline->thread_data);
-    player_pipeline->thread_data->user_data = player_pipeline;
-    player_thread_data_start(player_pipeline->thread_data);
 
     ESP_LOGI(TAG, "[3.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -446,44 +331,10 @@ void player_pipeline_close(player_pipeline_handle_t player_pipeline){
 #ifndef CONFIG_CHOICE_G711A_INTERNAL
     audio_element_deinit(player_pipeline->audio_decoder);
 #endif
-    player_thread_data_stop(player_pipeline->thread_data);
-    player_thread_data_destory(player_pipeline->thread_data);
     heap_caps_free(player_pipeline);
 };
 
-int player_pipeline_get_default_read_size(player_pipeline_handle_t player_pipeline){
-
-};
-
-#define RTC_PLAY_DATA_BUFFER_SIZE 16000
-unsigned char* get_audio_play_data_buffer(int buffer_size) {
-    static unsigned char play_data_buffer[RTC_PLAY_DATA_BUFFER_SIZE];
-    static int buffer_index = 0;
-    if (buffer_index + buffer_size >= RTC_PLAY_DATA_BUFFER_SIZE) {
-        buffer_index = 0;
-    }
-
-    unsigned char* ret = play_data_buffer + buffer_index;
-    buffer_index += buffer_size;
-    return ret;
-}
-static int64_t last_ts = 0;
 int player_pipeline_write(player_pipeline_handle_t player_pipeline, char *buffer, int buf_size){
-
-    int64_t current_ts = esp_timer_get_time() /  1000;
-    if (last_ts != 0 && current_ts - last_ts >= 800) {
-        player_pipeline_write_play_buffer_flag(player_pipeline);
-    }
-    last_ts = current_ts;
-
-    unsigned char* copy_buffer = get_audio_play_data_buffer(buf_size);
-    memcpy(copy_buffer, buffer, buf_size);
-
-    circle_queue_write(&player_pipeline->thread_data->audio_queue, copy_buffer, buf_size);
-    player_pipeline->thread_data->play_packet_count --;
+    raw_stream_write(player_pipeline->raw_writer, buffer, buf_size);
     return 0;
-};
-
-void player_pipeline_write_play_buffer_flag(player_pipeline_handle_t player_pipeline){
-    circle_queue_write(&player_pipeline->thread_data->audio_queue, &play_buffer_flag, 4);
 };
