@@ -93,6 +93,13 @@ static void byte_rtc_on_audio_data(byte_rtc_engine_t engine, const char* channel
                       audio_data_type_e codec, const void* data_ptr, size_t data_len){
     // ESP_LOGI(TAG, "byte_rtc_on_audio_data... len %d\n", data_len);
     engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    static char opus_data_cache[1024]; 
+    opus_data_cache[0] = (data_len >> 8) & 0xFF;
+    opus_data_cache[1] = data_len & 0xFF;
+    memcpy(opus_data_cache + 2, data_ptr, data_len);
+    player_pipeline_write(context->player_pipeline, opus_data_cache, data_len + 2);
+#endif
     player_pipeline_write(context->player_pipeline, data_ptr, data_len);
 }
 
@@ -267,13 +274,22 @@ static void byte_rtc_task(void *pvParameters) {
     byte_rtc_engine_t engine = byte_rtc_create(room_info->app_id, &handler);
     byte_rtc_set_log_level(engine, BYTE_RTC_LOG_LEVEL_ERROR);
     byte_rtc_set_params(engine, "{\"debug\":{\"log_to_console\":1}}");
-#ifdef CONFIG_CHOICE_G711A_INTERNAL
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM
     byte_rtc_set_params(engine,"{\"audio\":{\"codec\":{\"internal\":{\"enable\":1}}}}");
 #endif
 
     byte_rtc_init(engine);
+#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_OPUS);
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM) || defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G711A);
-    byte_rtc_set_video_codec(engine, VIDEO_CODEC_TYPE_H264);
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G722);
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_AACLC);
+#endif
+
+    // byte_rtc_set_video_codec(engine, VIDEO_CODEC_TYPE_H264); // 需要视频功能时设置
 
     engine_context_t engine_context = {
         .player_pipeline = player_pipeline,
@@ -301,10 +317,16 @@ static void byte_rtc_task(void *pvParameters) {
         int ret =  recorder_pipeline_read(pipeline, (char*) audio_buffer, DEFAULT_READ_SIZE);
         if (ret == DEFAULT_READ_SIZE && joined) {
             // push_audio data
-#ifdef CONFIG_CHOICE_G711A_INTERNAL
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCM};
-#else
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCMA};
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_G722};
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_AAC};
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_OPUS)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_OPUS};
 #endif
             byte_rtc_send_audio_data(engine, room_info->room_id, audio_buffer, DEFAULT_READ_SIZE, &audio_frame_info);
         }
@@ -363,7 +385,7 @@ void app_main(void)
 
     audio_board_handle_t board_handle = audio_board_init();   
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
-    audio_hal_set_volume(board_handle->audio_hal, 70);
+    audio_hal_set_volume(board_handle->audio_hal, 80);
     ESP_LOGI(TAG, "Starting again!\n");
 
     // Allow other core to finish initialization

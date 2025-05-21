@@ -1,5 +1,6 @@
 // Copyright (2025) Beijing Volcano Engine Technology Ltd.
 // SPDX-License-Identifier: MIT
+#pragma once
 
 // RTC APP ID
 #define RTC_APP_ID "67582ac8c0***174410bd1"
@@ -12,3 +13,9 @@
 
 // 默认声音id
 #define DEFAULT_VOICE_TYPE "BV***reaming"
+
+// #define DEFAULT_AUDIO_CODEC_TYPE_OPUS
+#define DEFAULT_AUDIO_CODEC_TYPE_PCM
+// #define DEFAULT_AUDIO_CODEC_TYPE_G711A
+// #define DEFAULT_AUDIO_CODEC_TYPE_G722
+// #define DEFAULT_AUDIO_CODEC_TYPE_AAC

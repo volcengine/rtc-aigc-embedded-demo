@@ -8,16 +8,23 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "audio_pipeline.h"
+#include "Config.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// #define CONFIG_CHOICE_G711A_ENCODER 1
-// #define CONFIG_CHOICE_OPUS_ENCODER 1
-// #define CONFIG_CHOICE_AAC_ENCODER 1
-// #define CONFIG_AUDIO_SUPPORT_G711A_DECODER 1
-#define CONFIG_CHOICE_G711A_INTERNAL 1
+#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+#define RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS 1
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM)
+#define RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM 1
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+#define RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A 1
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+#define RTC_DEMO_AUDIO_PIPELINE_CODEC_G722 1
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+#define RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC 1
+#endif
 
 struct recorder_pipeline_t;
 typedef struct recorder_pipeline_t recorder_pipeline_t,*recorder_pipeline_handle_t;

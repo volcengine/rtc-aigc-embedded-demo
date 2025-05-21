@@ -46,6 +46,15 @@ int start_voice_bot(rtc_room_info_t* room_info) {
     cJSON *post_jobj = cJSON_CreateObject();
     cJSON_AddStringToObject(post_jobj, "end_point_id", DEFAULT_END_POINT_ID);
     cJSON_AddStringToObject(post_jobj, "voice_type", DEFAULT_VOICE_TYPE);
+#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+    cJSON_AddStringToObject(post_jobj, "audio_codec", "OPUS");
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM) || defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+    cJSON_AddStringToObject(post_jobj, "audio_codec", "G711A");
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+    cJSON_AddStringToObject(post_jobj, "audio_codec", "G722");
+#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+    cJSON_AddStringToObject(post_jobj, "audio_codec", "AAC");
+#endif
     const char* json_str = cJSON_Print(post_jobj);
     strcpy(post_data, json_str);
     cJSON_Delete(post_jobj);

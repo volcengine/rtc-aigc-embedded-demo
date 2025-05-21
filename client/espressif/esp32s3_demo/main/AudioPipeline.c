@@ -24,13 +24,13 @@
 #include "esp_timer.h"
 
 
-#if defined (CONFIG_CHOICE_OPUS_ENCODER)
-#include "opus_encoder.h"
-#include "opus_decoder.h"
-#elif defined (CONFIG_CHOICE_AAC_ENCODER)
+#if defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+#include "raw_opus_encoder.h"
+#include "raw_opus_decoder.h"
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
 #include "aac_encoder.h"
 #include "aac_decoder.h"
-#elif defined (CONFIG_CHOICE_G711A_ENCODER)
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
 #include "g711_encoder.h"
 #include "g711_decoder.h"
 #endif
@@ -54,23 +54,23 @@ static const char *TAG = "AUDIO_PIPELINE";
 #define CHANNEL_NUM                 2
 #endif
 
-#if (CONFIG_CHOICE_OPUS_ENCODER)
+#if (RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
 #define CODEC_NAME          "opus"
 #define CODEC_SAMPLE_RATE   16000
-#define BIT_RATE            64000
+#define BIT_RATE            32000
 #define COMPLEXITY          10
 #define FRAME_TIME_MS       20 
 
-#define DEC_SAMPLE_RATE     48000
-#define DEC_BIT_RATE        64000
-#elif (CONFIG_CHOICE_AAC_ENCODER)
+#define DEC_SAMPLE_RATE     16000
+#define DEC_BIT_RATE        16000
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
 #define CODEC_NAME          "aac"
 #define CODEC_SAMPLE_RATE   16000
 #define BIT_RATE            80000
-#elif (CONFIG_CHOICE_G711A_ENCODER)
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
 #define CODEC_NAME          "g711a"
 #define CODEC_SAMPLE_RATE   8000
-#elif (CONFIG_CHOICE_G711A_INTERNAL)
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
 #define CODEC_NAME          "g711a"
 #define CODEC_SAMPLE_RATE   8000
 #endif
@@ -95,17 +95,67 @@ struct  player_pipeline_t {
 
 static audio_element_handle_t create_resample_stream(int src_rate, int src_ch, int dest_rate, int dest_ch)
 {
-    ESP_LOGI(TAG, "[3.1] Create resample stream");
     rsp_filter_cfg_t rsp_cfg = DEFAULT_RESAMPLE_FILTER_CONFIG();
     rsp_cfg.src_rate = src_rate;
     rsp_cfg.src_ch = src_ch;
     rsp_cfg.dest_rate = dest_rate;
     rsp_cfg.dest_ch = dest_ch;
     rsp_cfg.complexity = 5;
-    return rsp_filter_init(&rsp_cfg);
+    audio_element_handle_t stream = rsp_filter_init(&rsp_cfg);
+    return stream;
 }
 
-static audio_element_handle_t create_algo_stream(void)
+static audio_element_handle_t create_record_i2s_stream(void)
+{
+#if CONFIG_ESP32_S3_KORVO2_V3_BOARD
+    es7210_adc_set_gain(ES7210_INPUT_MIC3, GAIN_30DB);
+#elif CONFIG_M5STACK_ATOMS3R_BOARD
+    es8311_set_mic_gain(ES8311_MIC_GAIN_36DB);
+#endif
+    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(CODEC_ADC_I2S_PORT, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_READER); // 参数需要仔细检查
+    i2s_cfg.type = AUDIO_STREAM_READER;
+    i2s_stream_set_channel_type(&i2s_cfg, CHANNEL_FORMAT);
+    i2s_cfg.std_cfg.clk_cfg.sample_rate_hz = I2S_SAMPLE_RATE;
+    return i2s_stream_init(&i2s_cfg);
+}
+
+static audio_element_handle_t create_record_encoder_stream(void)
+{
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    raw_opus_enc_config_t opus_cfg = RAW_OPUS_ENC_CONFIG_DEFAULT();
+    opus_cfg.sample_rate        = CODEC_SAMPLE_RATE;
+    opus_cfg.channel            = CHANNEL;
+    opus_cfg.bitrate            = BIT_RATE;
+    opus_cfg.complexity         = 0; // COMPLEXITY;
+    opus_cfg.task_core          = 1;
+    return raw_opus_encoder_init(&opus_cfg);
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+    aac_encoder_cfg_t aac_cfg = DEFAULT_AAC_ENCODER_CONFIG();
+    aac_cfg.sample_rate        = CODEC_SAMPLE_RATE;
+    aac_cfg.channel            = CHANNEL;
+    aac_cfg.bitrate            = BIT_RATE;
+    pipeline->audio_encoder = aac_encoder_init(&aac_cfg);
+    return audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+    g711_encoder_cfg_t g711_cfg = DEFAULT_G711_ENCODER_CONFIG();
+    return g711_encoder_init(&g711_cfg);
+#else
+    return NULL;
+#endif
+}
+
+static audio_element_handle_t create_record_raw_stream(void)
+{
+    audio_element_handle_t raw_stream = NULL;
+    raw_stream_cfg_t raw_cfg = RAW_STREAM_CFG_DEFAULT();
+    raw_cfg.type = AUDIO_STREAM_WRITER;
+    raw_cfg.out_rb_size = 2 * 1024;
+    raw_stream = raw_stream_init(&raw_cfg);
+    audio_element_set_output_timeout(raw_stream, portMAX_DELAY);
+    return raw_stream;
+}
+
+static audio_element_handle_t create_record_algo_stream(void)
 {
     ESP_LOGI(TAG, "[3.1] Create algorithm stream for aec");
     algorithm_stream_cfg_t algo_config = ALGORITHM_STREAM_CFG_DEFAULT();
@@ -122,72 +172,43 @@ static audio_element_handle_t create_algo_stream(void)
 
 recorder_pipeline_handle_t recorder_pipeline_open()
 {
-    recorder_pipeline_handle_t pipeline = heap_caps_malloc(sizeof(recorder_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
-    // memset(&pipeline,0,sizeof(recorder_pipeline_t));
+    recorder_pipeline_handle_t pipeline = heap_caps_calloc(1, sizeof(recorder_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
     esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
-#if CONFIG_ESP32_S3_KORVO2_V3_BOARD
-    es7210_adc_set_gain(ES7210_INPUT_MIC3, GAIN_30DB);
-#elif CONFIG_M5STACK_ATOMS3R_BOARD
-    es8311_set_mic_gain(ES8311_MIC_GAIN_36DB);
-#endif
-
-    ESP_LOGI(TAG, "[3.0] Create audio pipeline for recording");
+    // create and register streams
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline->audio_pipeline = audio_pipeline_init(&pipeline_cfg);
     mem_assert(pipeline->audio_pipeline);
 
-    ESP_LOGI(TAG, "[3.2] Create i2s stream to read audio data from codec chip");
-    i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(CODEC_ADC_I2S_PORT, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_READER);
-    i2s_cfg.type = AUDIO_STREAM_READER;
-    i2s_stream_set_channel_type(&i2s_cfg, CHANNEL_FORMAT);
-    i2s_cfg.std_cfg.clk_cfg.sample_rate_hz = I2S_SAMPLE_RATE;
-    pipeline->i2s_stream_reader = i2s_stream_init(&i2s_cfg);
-    ESP_LOGI(TAG, "[3.3] Create audio encoder to handle data");
-
-    pipeline->rsp = create_resample_stream(I2S_SAMPLE_RATE, 1, CODEC_SAMPLE_RATE, 1);
-    audio_pipeline_register(pipeline->audio_pipeline, pipeline->rsp, "rsp");
-
-#if  defined (CONFIG_CHOICE_OPUS_ENCODER)
-    raw_opus_enc_config_t opus_cfg = DEFAULT_OPUS_ENCODER_CONFIG();
-    opus_cfg.sample_rate        = CODEC_SAMPLE_RATE;
-    opus_cfg.channel            = CHANNEL;
-    opus_cfg.bitrate            = BIT_RATE;
-    opus_cfg.complexity         = COMPLEXITY;
-    pipeline->audio_encoder = raw_opus_decoder_init(&opus_cfg);
-    audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
-    const char *link_tag[] = {"i2s", "opus", "raw"};
-#elif defined (CONFIG_CHOICE_AAC_ENCODER)
-    aac_encoder_cfg_t aac_cfg = DEFAULT_AAC_ENCODER_CONFIG();
-    aac_cfg.sample_rate        = CODEC_SAMPLE_RATE;
-    aac_cfg.channel            = CHANNEL;
-    aac_cfg.bitrate            = BIT_RATE;
-    pipeline->audio_encoder = aac_encoder_init(&aac_cfg);
-    audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
-    const char *link_tag[] = {"i2s", "aac", "raw"};
-#elif defined (CONFIG_CHOICE_G711A_ENCODER)
-    g711_encoder_cfg_t g711_cfg = DEFAULT_G711_ENCODER_CONFIG();
-    pipeline->audio_encoder = g711_encoder_init(&g711_cfg);
-    audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
-    const char *link_tag[] = {"i2s", "algo", "rsp", "g711a", "raw"};
-#elif defined (CONFIG_CHOICE_G711A_INTERNAL)
-    const char *link_tag[] = {"i2s", "algo", "rsp", "raw"};
-#endif
-
-    ESP_LOGI(TAG, "[3.4] Register all elements to audio pipeline");
+    pipeline->i2s_stream_reader = create_record_i2s_stream();
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->i2s_stream_reader, "i2s");
-
-    pipeline->algo_aec = create_algo_stream();
+    
+    pipeline->algo_aec = create_record_algo_stream();
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->algo_aec, "algo");
 
-    raw_stream_cfg_t raw_cfg = RAW_STREAM_CFG_DEFAULT();
-    raw_cfg.type = AUDIO_STREAM_WRITER;
-    raw_cfg.out_rb_size = 2 * 1024;
-    pipeline->raw_reader = raw_stream_init(&raw_cfg);
-    audio_element_set_output_timeout(pipeline->raw_reader, portMAX_DELAY);
+#ifndef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    pipeline->rsp = create_resample_stream(I2S_SAMPLE_RATE, 1, CODEC_SAMPLE_RATE, 1);
+    audio_pipeline_register(pipeline->audio_pipeline, pipeline->rsp, "rsp");
+#endif
+
+    pipeline->audio_encoder = create_record_encoder_stream();
+    if (pipeline->audio_encoder) {
+        audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
+    }
+
+    pipeline->raw_reader = create_record_raw_stream();
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->raw_reader, "raw");
-    ESP_LOGI(TAG, "[3.5] Link it together [codec_chip]-->i2s_stream-->audio_encoder-->raw");
+
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    const char *link_tag[] = {"i2s", "algo", CODEC_NAME, "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+    const char *link_tag[] = {"i2s", "aac", "rsp", CODEC_NAME, "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+    const char *link_tag[] = {"i2s", "algo", "rsp", "g711a", "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
+    const char *link_tag[] = {"i2s", "algo", "rsp", "raw"};
+#endif
 
     audio_pipeline_link(pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
     return pipeline;
@@ -198,18 +219,28 @@ void recorder_pipeline_close(recorder_pipeline_handle_t pipeline)  {
     audio_pipeline_wait_for_stop(pipeline->audio_pipeline);
     audio_pipeline_terminate(pipeline->audio_pipeline);
 
-    audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->algo_aec);
-    audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->audio_encoder);
-    audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->i2s_stream_reader);
-    audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->raw_reader);
+    if (pipeline->i2s_stream_reader) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->i2s_stream_reader);
+        audio_element_deinit(pipeline->i2s_stream_reader);
+    }
+    if (pipeline->audio_encoder) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->audio_encoder);
+        audio_element_deinit(pipeline->audio_encoder);
+    }
+    if (pipeline->raw_reader) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->raw_reader);
+        audio_element_deinit(pipeline->raw_reader);
+    }
+    if (pipeline->rsp) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->rsp);
+        audio_element_deinit(pipeline->rsp);
+    }
+    if (pipeline->algo_aec) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->algo_aec);
+        audio_element_deinit(pipeline->algo_aec);
+    }
 
-    /* Release all resources */
     audio_pipeline_deinit(pipeline->audio_pipeline);
-    audio_element_deinit(pipeline->algo_aec);
-    audio_element_deinit(pipeline->raw_reader);
-    audio_element_deinit(pipeline->i2s_stream_reader);
-    audio_element_deinit(pipeline->audio_encoder);
-
     heap_caps_free(pipeline);
 };
 
@@ -218,13 +249,13 @@ void recorder_pipeline_run(recorder_pipeline_handle_t pipeline){
 };
 
 int recorder_pipeline_get_default_read_size(recorder_pipeline_handle_t pipeline){
-    #if defined (CONFIG_CHOICE_OPUS_ENCODER)
-        return BIT_RATE * FRAME_TIME_MS / 1000;//
-    #elif defined (CONFIG_CHOICE_AAC_ENCODER)
+    #if defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+        return 80;
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
         return -1;//
-    #elif defined (CONFIG_CHOICE_G711A_ENCODER)
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
         return 160;
-    #elif defined (CONFIG_CHOICE_G711A_INTERNAL)
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
         return 320;
     #endif
 };
@@ -240,25 +271,16 @@ int recorder_pipeline_read(recorder_pipeline_handle_t pipeline,char *buffer, int
     return raw_stream_read(pipeline->raw_reader, buffer,buf_size);
 }
 
-player_pipeline_handle_t player_pipeline_open(void) {
-    player_pipeline_handle_t player_pipeline = heap_caps_malloc(sizeof(player_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
-    esp_log_level_set("*", ESP_LOG_WARN);
-    esp_log_level_set(TAG, ESP_LOG_INFO);
-    ESP_LOGI(TAG, "[ 2 ] Start codec chip");
-
-    assert(player_pipeline != 0);
-
-    ESP_LOGI(TAG, "[3.0] Create audio pipeline for playback");
-    audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
-    player_pipeline->audio_pipeline = audio_pipeline_init(&pipeline_cfg);
-    mem_assert(pipeline);
-
+static audio_element_handle_t create_player_raw_stream(void)
+{
     raw_stream_cfg_t raw_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_cfg.type = AUDIO_STREAM_READER;
     raw_cfg.out_rb_size = 8 * 1024;
-    player_pipeline->raw_writer = raw_stream_init(&raw_cfg);
+    return raw_stream_init(&raw_cfg);
+}
 
-    ESP_LOGI(TAG, "[3.2] Create i2s stream to write data to codec chip");
+static audio_element_handle_t create_player_i2s_stream(void)
+{
     i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT_WITH_PARA(I2S_NUM_0, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, AUDIO_STREAM_WRITER);
     i2s_cfg.type = AUDIO_STREAM_WRITER;
 #ifdef CONFIG_ESP32_S3_KORVO2_V3_BOARD
@@ -267,39 +289,64 @@ player_pipeline_handle_t player_pipeline_open(void) {
     i2s_cfg.out_rb_size = 8 * 1024;
     i2s_cfg.buffer_len = 1416;//708
     i2s_stream_set_channel_type(&i2s_cfg, CHANNEL_FORMAT);
-    player_pipeline->i2s_stream_writer = i2s_stream_init(&i2s_cfg);
-    i2s_stream_set_clk(player_pipeline->i2s_stream_writer, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, CHANNEL_NUM);
+    audio_element_handle_t stream = i2s_stream_init(&i2s_cfg);
+    i2s_stream_set_clk(stream, I2S_SAMPLE_RATE, ALGORITHM_STREAM_SAMPLE_BIT, CHANNEL_NUM);
+    return stream;
+}
 
+static audio_element_handle_t create_player_decoder_stream(void)
+{
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    raw_opus_dec_cfg_t opus_dec_cfg = RAW_OPUS_DEC_CONFIG_DEFAULT();
+    opus_dec_cfg.enable_frame_length_prefix = true;
+    opus_dec_cfg.sample_rate = DEC_SAMPLE_RATE;
+    opus_dec_cfg.channels = 1;
+    opus_dec_cfg.task_core = 1;
+    return raw_opus_decoder_init(&opus_dec_cfg);
+#elif RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC
+    aac_decoder_cfg_t  aac_dec_cfg  = DEFAULT_AAC_DECODER_CONFIG();
+    return aac_decoder_init(&aac_dec_cfg);
+#elif RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A
+    g711_decoder_cfg_t g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
+    g711_dec_cfg.out_rb_size = 8 * 1024;
+    return g711_decoder_init(&g711_dec_cfg);
+#else
+    return NULL;
+#endif
+}
+
+player_pipeline_handle_t player_pipeline_open(void) {
+    player_pipeline_handle_t player_pipeline = heap_caps_calloc(1, sizeof(player_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
+    esp_log_level_set("*", ESP_LOG_WARN);
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+    assert(player_pipeline != 0);
+
+    audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
+    player_pipeline->audio_pipeline = audio_pipeline_init(&pipeline_cfg);
+    mem_assert(pipeline);
+
+    
+    player_pipeline->raw_writer = create_player_raw_stream();
+    audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->raw_writer, "raw");
+
+    player_pipeline->i2s_stream_writer = create_player_i2s_stream();
+    audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer, "i2s");
+
+#ifndef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
     player_pipeline->rsp = create_resample_stream(CODEC_SAMPLE_RATE, 1, I2S_SAMPLE_RATE, CHANNEL_NUM);
     audio_element_set_output_timeout(player_pipeline->rsp, portMAX_DELAY);
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->rsp, "rsp");
-
-#ifdef CONFIG_AUDIO_SUPPORT_OPUS_DECODER
-    ESP_LOGI(TAG, "[3.3] Create opus decoder");
-    raw_opus_dec_cfg_t opus_dec_cfg = DEFAULT_OPUS_DECODER_CONFIG();
-    opus_dec_cfg.samp_rate = DEC_SAMPLE_RATE;
-    opus_dec_cfg.dec_frame_size = DEC_BIT_RATE * FRAME_TIME_MS / 1000;
-    player_pipeline->audio_decoder = raw_opus_decoder_init(&opus_dec_cfg);
-#elif CONFIG_AUDIO_SUPPORT_AAC_DECODER
-    ESP_LOGI(TAG, "[3.3] Create aac decoder");
-    aac_decoder_cfg_t  aac_dec_cfg  = DEFAULT_AAC_DECODER_CONFIG();
-    player_pipeline->audio_decoder = aac_decoder_init(&aac_dec_cfg);
-#elif CONFIG_AUDIO_SUPPORT_G711A_DECODER
-    g711_decoder_cfg_t g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
-    g711_dec_cfg.out_rb_size = 8 * 1024;
-    player_pipeline->audio_decoder = g711_decoder_init(&g711_dec_cfg);
 #endif
 
-    ESP_LOGI(TAG, "[3.4] Register all elements to audio pipeline");
-    audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->raw_writer, "raw");
-#ifndef CONFIG_CHOICE_G711A_INTERNAL
-    audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->audio_decoder, "dec");
-#endif
-    audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer, "i2s");
-
-    ESP_LOGI(TAG, "[3.5] Link it together raw-->audio_decoder-->i2s_stream-->[codec_chip]");
-#if defined (CONFIG_CHOICE_G711A_INTERNAL)
+    player_pipeline->audio_decoder = create_player_decoder_stream();
+    if (player_pipeline->audio_decoder != NULL) {
+        audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->audio_decoder, "dec");
+    }
+    
+#if defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
     const char *link_tag[] = {"raw", "rsp", "i2s"};
+#elif defined(RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+const char *link_tag[] = {"raw", "dec", "i2s"};
 #else
     const char *link_tag[] = {"raw", "dec", "rsp", "i2s"};
 #endif
@@ -318,19 +365,24 @@ void player_pipeline_close(player_pipeline_handle_t player_pipeline){
     audio_pipeline_wait_for_stop(player_pipeline->audio_pipeline);
     audio_pipeline_terminate(player_pipeline->audio_pipeline);
 
-    audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->raw_writer);
-    audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer);
-#ifndef CONFIG_CHOICE_G711A_INTERNAL
-    audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->audio_decoder);
-#endif
+    if (player_pipeline->raw_writer) {
+        audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->raw_writer);
+        audio_element_deinit(player_pipeline->raw_writer);
+    }
+    if (player_pipeline->audio_decoder) {
+        audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->audio_decoder);
+        audio_element_deinit(player_pipeline->audio_decoder); 
+    }
+    if (player_pipeline->rsp) {
+        audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->rsp);
+        audio_element_deinit(player_pipeline->rsp); 
+    }
+    if (player_pipeline->i2s_stream_writer) {
+        audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer);
+        audio_element_deinit(player_pipeline->i2s_stream_writer); 
+    }
 
-    /* Release all resources */
     audio_pipeline_deinit(player_pipeline->audio_pipeline);
-    audio_element_deinit(player_pipeline->raw_writer);
-    audio_element_deinit(player_pipeline->i2s_stream_writer);
-#ifndef CONFIG_CHOICE_G711A_INTERNAL
-    audio_element_deinit(player_pipeline->audio_decoder);
-#endif
     heap_caps_free(player_pipeline);
 };
 
