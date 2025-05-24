@@ -209,7 +209,7 @@ python3 RtcAigcService.py
     ```shell
     idf.py menuconfig
     ```
-    进入 `Example Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，在 `RTC APPID` 中填入你的 RTC APPID (前往https://console.volcengine.com/rtc/listRTC获取)，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
+    进入 `Example Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，在 `RTC APPID` 中填入你的 RTC APPID (前往 https://console.volcengine.com/rtc/listRTC 获取)，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
 
     4. 设置开发板型号
     ```shell
