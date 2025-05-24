@@ -1,0 +1,45 @@
+menu "Example Configuration"
+
+config WIFI_SSID
+    string "WiFi SSID"
+    default "YOUR WIFI SSID"
+    help
+        SSID (network name) for the example to connect to.
+
+config WIFI_PASSWORD
+    string "WiFi Password"
+    default "YOUR WIFI PASSWORD"
+    help
+        WiFi password (WPA or WPA2) for the example to use.
+
+        Can be left blank if the network has no security set.
+
+config RTC_APPID
+    string "RTC_APPID"
+    default "67582ac8******0174410bd1"
+
+config AIGENT_SERVER_HOST
+    string "AIGC SERVER IP:PORT"
+    default "192.***.***.2:8080"
+
+choice AUDIO_CODEC_SUPPORT
+    prompt "Audio Codec"
+    default AUDIO_CODEC_TYPE_PCM
+
+config AUDIO_CODEC_TYPE_PCM
+    bool "audio codec is pcm, use internal audio codec instead"
+
+config AUDIO_CODEC_TYPE_OPUS
+    bool "audio codec is opus"
+
+config AUDIO_CODEC_TYPE_G711A
+    bool "audio codec is g711a"
+
+config AUDIO_CODEC_TYPE_G722
+    bool "audio codec is g722, not support yet"
+
+config AUDIO_CODEC_TYPE_AACLC
+    bool "audio codec is aaclc, not support yet"
+
+endchoice
+endmenu

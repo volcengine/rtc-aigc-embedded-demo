@@ -13,7 +13,6 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
-#include "protocol_examples_common.h"
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,8 +22,6 @@
 #include <VolcEngineRTCLite.h>
 #include "freertos/semphr.h"
 #include "esp_err.h"
-#include "esp_littlefs.h"
-#include "Config.h"
 #include "sdkconfig.h"
 #include "audio_element.h"
 #include "audio_pipeline.h"
@@ -33,7 +30,7 @@
 #include "audio_sys.h"
 #include "board.h"
 #include "esp_peripherals.h"
-#include "periph_sdcard.h"
+#include "periph_wifi.h"
 #include "fatfs_stream.h"
 #include "i2s_stream.h"
 #include "AudioPipeline.h"
@@ -50,9 +47,8 @@ typedef struct {
     rtc_room_info_t* room_info;
     char remote_uid[128];
 } engine_context_t;
-
 // byte rtc lite callbacks
-static void byte_rtc_on_join_room_success(byte_rtc_engine_t engine, const char* channel, int elapsed_ms) {
+static void byte_rtc_on_join_room_success(byte_rtc_engine_t engine, const char* channel, int elapsed_ms, bool rejoin) {
     ESP_LOGI(TAG, "join channel success %s elapsed %d ms now %d ms\n", channel, elapsed_ms, elapsed_ms);
     joined = true;
 };
@@ -279,13 +275,13 @@ static void byte_rtc_task(void *pvParameters) {
 #endif
 
     byte_rtc_init(engine);
-#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+#ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_OPUS);
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM) || defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_PCM) || defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G711A);
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G722);
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
     byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_AACLC);
 #endif
 
@@ -319,13 +315,13 @@ static void byte_rtc_task(void *pvParameters) {
             // push_audio data
 #ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCM};
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCMA};
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_G722};
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_AAC};
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_OPUS)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_OPUS)
             audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_OPUS};
 #endif
             byte_rtc_send_audio_data(engine, room_info->room_id, audio_buffer, DEFAULT_READ_SIZE, &audio_frame_info);
@@ -353,35 +349,17 @@ void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init() );
     ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-     */
-    ESP_ERROR_CHECK(example_connect());
-    esp_vfs_littlefs_conf_t conf = {
-        .base_path = "/littlefs",
-        .partition_label = "storage",
-        .format_if_mount_failed = true,
-        .dont_mount = false,
-    };
-
-
-    esp_err_t ret = esp_vfs_littlefs_register(&conf);
-    if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
-        } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find LittleFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(ret));
-        }
-        return;
-    }
 
     esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
+
+    periph_wifi_cfg_t wifi_cfg = {
+        .wifi_config.sta.ssid = CONFIG_WIFI_SSID,
+        .wifi_config.sta.password = CONFIG_WIFI_PASSWORD,
+    };
+    esp_periph_handle_t wifi_handle = periph_wifi_init(&wifi_cfg);
+    esp_periph_start(set, wifi_handle);
+    periph_wifi_wait_for_connected(wifi_handle, portMAX_DELAY);
 
     audio_board_handle_t board_handle = audio_board_init();   
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);

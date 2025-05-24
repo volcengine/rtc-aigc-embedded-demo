@@ -64,7 +64,7 @@ pip install requests
     AK = "AKLTNWQyODQ1MDM5Y***********WRmM2Y2NTJlMTQyZjI"
 
     # 实时音视频 App ID。前往 https://console.volcengine.com/rtc/listRTC 获取或创建
-    RTC_APP_ID = "67582ac8******0174410bd1"
+    CONFIG_RTC_APPID = "67582ac8******0174410bd1"
     # 实时音视频 APP KEY。前往 https://console.volcengine.com/rtc/listRTC 获取
     RTC_APP_KEY = "1a6a03723c******222ada877ee13b"
 
@@ -117,7 +117,7 @@ python3 RtcAigcService.py
     ```
 
 2. 将 乐鑫 ADF 框架克隆到本地，并同步各子仓（submodule）代码
-> **注意：** demo 中使用的 ADF 版本为 [0d76650198ca96546c40d10a7ce8963bacdf820b], 对应 IDF 版本为 [v5.4], 请确保 ADF 版本与 IDF 版本匹配。
+> **注意：** demo 中使用的 ADF 版本为 [eca11f20e56f9b5321b714da4305e123672d92a9], 对应 IDF 版本为 [v5.4], 请确保 ADF 版本与 IDF 版本匹配。
     1. clone 乐鑫ADF 框架
 
     ```shell
@@ -130,7 +130,7 @@ python3 RtcAigcService.py
     ```
     3. 切换到乐鑫ADF指定版本
     ```shell
-    git reset --hard 0d76650198ca96546c40d10a7ce8963bacdf820b
+    git reset --hard eca11f20e56f9b5321b714da4305e123672d92a9
     ```
     4. 同步各子仓代码
 
@@ -180,24 +180,7 @@ python3 RtcAigcService.py
     git clone https://github.com/volcengine/rtc-aigc-embedded-demo.git 
     ```
 
-2. 打开设备端配置文件 `rtc-aigc-embedded-demo/client/espressif/esp32s3_demo/main/Config.h`，设置如下参数
-
-
-    ```c
-    // 你的服务端地址:监听端口号
-    #define DEFAULT_SERVER_HOST "127.0.0.1:8080"
-
-    // 服务端设置的大模型 EndPointId
-    #define DEFAULT_END_POINT_ID "ep-20240729** **** **"
-
-    // 服务端设置的音频生成-语音合成 Voice_type
-    #define DEFAULT_VOICE_TYPE "zh_female_** *****"
-
-    // 服务端设置的实时音视频 APPID
-    #define RTC_APP_ID "5c833ef** **** **"
-    ```
-
-3. 禁用乐鑫工程中的火山组件
+2. 禁用乐鑫工程中的火山组件
     1. 进入 esp-adf 目录
 
     ```shell
@@ -206,12 +189,7 @@ python3 RtcAigcService.py
     2. 禁用乐鑫工程中的火山组件
 
     ```shell
-    git apply $ADF_PATH/examples/rtc-aigc-embedded-demo/0001-fix-disable-volc-engine-in-esp.patch
-    ```
-
-    3. 更新AtomS3R开发板补丁
-    ```shell
-    git apply $ADF_PATH/examples/rtc-aigc-embedded-demo/0001-add-atoms3r-board.patch
+    git apply $ADF_PATH/examples/rtc-aigc-embedded-demo/0001-feat-disable-volc-esp-libs.patch
     ```
 
 #### 编译固件
@@ -227,11 +205,11 @@ python3 RtcAigcService.py
     ```shell
     idf.py set-target esp32s3
     ```
-    3. 设置WIFI账号密码
+    3. 设置WIFI账号密码、RTC APPID、服务端地址和端口号
     ```shell
     idf.py menuconfig
     ```
-    进入 `Example Connection Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，并保存。
+    进入 `Example Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，在 `RTC APPID` 中填入你的 RTC APPID (前往https://console.volcengine.com/rtc/listRTC获取)，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
 
     4. 设置开发板型号
     ```shell

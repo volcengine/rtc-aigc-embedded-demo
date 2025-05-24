@@ -5,7 +5,7 @@
     ```shell
     # headers
     # Content-Type 固定值 application/json
-    # Authorization af78e30 + ${RTC_APP_ID} 
+    # Authorization af78e30 + ${CONFIG_RTC_APPID} 
     ```
 
 2. 启动智能体

@@ -3,7 +3,6 @@
 
 #include "RtcBotUtils.h"
 #include "RtcHttpUtils.h"
-#include "Config.h"
 #include "cJSON.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -27,32 +26,20 @@ static void impl_free_fn(void *ptr) {
 
 const char* common_headers[] = {
     "Content-Type", "application/json",
-    "Authorization", "af78e30" RTC_APP_ID,
+    "Authorization", "af78e30" CONFIG_RTC_APPID,
     NULL
 };
 
 int start_voice_bot(rtc_room_info_t* room_info) {
-    static int cjson_init_hook = 0;
-    if (cjson_init_hook == 0) {
-        // cJSON_Hooks hook = {
-        //     .malloc_fn = impl_malloc_fn,
-        //     .free_fn = impl_free_fn,
-        // };
-        // cJSON_InitHooks(&hook);
-        cjson_init_hook = 1;
-    }
-    
     char post_data[512];
     cJSON *post_jobj = cJSON_CreateObject();
-    cJSON_AddStringToObject(post_jobj, "end_point_id", DEFAULT_END_POINT_ID);
-    cJSON_AddStringToObject(post_jobj, "voice_type", DEFAULT_VOICE_TYPE);
-#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+#ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
     cJSON_AddStringToObject(post_jobj, "audio_codec", "OPUS");
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM) || defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_PCM) || defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
     cJSON_AddStringToObject(post_jobj, "audio_codec", "G711A");
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
     cJSON_AddStringToObject(post_jobj, "audio_codec", "G722");
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
     cJSON_AddStringToObject(post_jobj, "audio_codec", "AAC");
 #endif
     const char* json_str = cJSON_Print(post_jobj);
@@ -60,7 +47,7 @@ int start_voice_bot(rtc_room_info_t* room_info) {
     cJSON_Delete(post_jobj);
 
     rtc_post_config_t post_config = {
-        .uri = "http://" DEFAULT_SERVER_HOST "/startvoicechat",
+        .uri = "http://" CONFIG_AIGENT_SERVER_HOST "/startvoicechat",
         .headers = common_headers,
         .post_data = post_data  // 根据需要传入智能体id和音色id
     };
@@ -134,7 +121,7 @@ int stop_voice_bot(const rtc_room_info_t* room_info) {
     cJSON_Delete(post_jobj);
     
     rtc_post_config_t post_config = {
-        .uri = "http://" DEFAULT_SERVER_HOST "/stopvoicechat",
+        .uri = "http://" CONFIG_AIGENT_SERVER_HOST "/stopvoicechat",
         .headers = common_headers,
         .post_data = post_data
     };
@@ -189,7 +176,7 @@ int update_voice_bot(const rtc_room_info_t* room_info, const char* command, cons
 
     
     rtc_post_config_t post_config = {
-        .uri = "http://" DEFAULT_SERVER_HOST "/updatevoicechat",
+        .uri = "http://" CONFIG_AIGENT_SERVER_HOST "/updatevoicechat",
         .headers = common_headers,
         .post_data = post_data
     };

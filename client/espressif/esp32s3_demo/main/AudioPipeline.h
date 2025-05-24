@@ -8,21 +8,20 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "audio_pipeline.h"
-#include "Config.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef DEFAULT_AUDIO_CODEC_TYPE_OPUS
+#ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
 #define RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS 1
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_PCM)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_PCM)
 #define RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM 1
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G711A)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
 #define RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A 1
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_G722)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
 #define RTC_DEMO_AUDIO_PIPELINE_CODEC_G722 1
-#elif defined(DEFAULT_AUDIO_CODEC_TYPE_AAC)
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
 #define RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC 1
 #endif
 
