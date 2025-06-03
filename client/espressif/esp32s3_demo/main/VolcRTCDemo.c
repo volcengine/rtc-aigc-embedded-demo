@@ -36,6 +36,7 @@
 #include "AudioPipeline.h"
 #include "RtcBotUtils.h"
 #include "cJSON.h"
+#include "network.h"
 
 #define STATS_TASK_PRIO     5
 
@@ -347,19 +348,29 @@ static void byte_rtc_task(void *pvParameters) {
 
 void app_main(void)
 {
-    ESP_ERROR_CHECK(nvs_flash_init() );
+    /* Initialize the default event loop */
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    /* Initialize NVS flash for WiFi configuration */
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_LOGW(TAG, "Erasing NVS flash to fix corruption");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
     ESP_ERROR_CHECK(esp_netif_init());
 
     esp_periph_config_t periph_cfg = DEFAULT_ESP_PERIPH_SET_CONFIG();
     esp_periph_set_handle_t set = esp_periph_set_init(&periph_cfg);
 
-    periph_wifi_cfg_t wifi_cfg = {
-        .wifi_config.sta.ssid = CONFIG_WIFI_SSID,
-        .wifi_config.sta.password = CONFIG_WIFI_PASSWORD,
-    };
-    esp_periph_handle_t wifi_handle = periph_wifi_init(&wifi_cfg);
-    esp_periph_start(set, wifi_handle);
-    periph_wifi_wait_for_connected(wifi_handle, portMAX_DELAY);
+   bool connected = configure_network();
+   if (connected == false) {
+       ESP_LOGE(TAG, "Failed to connect to network");
+       return;
+   }
 
     audio_board_handle_t board_handle = audio_board_init();   
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
@@ -367,7 +378,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Starting again!\n");
 
     // Allow other core to finish initialization
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
     // Create and start stats task
     xTaskCreate(&byte_rtc_task, "byte_rtc_task", 8192, NULL, STATS_TASK_PRIO, NULL);
