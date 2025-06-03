@@ -244,7 +244,7 @@ python3 RtcAigcService.py
     1. 手机找到名形如“VolcRTC-XXXXXX”的wifi热点，连接上wifi。
     2. 打开浏览器，输入URL_ADDRESS 打开浏览器，输入http://192.168.4.1，进入wifi配网页面。
     3. 输入wifi名称和密码，点击提交。<br>
-    注意：如果需要更换wifi名称密码，重新启动设备，设备不能在上次连上的wifi范围内，等待30s进入配网模式，重新执行上面的4.1 - 4.3步骤。
+    注意：如果需要更换wifi名称密码，重新启动设备，设备不能在上次连上的wifi范围内，等待30s进入配网模式，重新执行上面wifi配网的3个步骤。
 ## 进阶阅读
 [服务端示例接口说明](server/src/README.md)
 
