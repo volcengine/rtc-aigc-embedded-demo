@@ -1,19 +1,5 @@
 menu "Example Configuration"
 
-config WIFI_SSID
-    string "WiFi SSID"
-    default "YOUR WIFI SSID"
-    help
-        SSID (network name) for the example to connect to.
-
-config WIFI_PASSWORD
-    string "WiFi Password"
-    default "YOUR WIFI PASSWORD"
-    help
-        WiFi password (WPA or WPA2) for the example to use.
-
-        Can be left blank if the network has no security set.
-
 config RTC_APPID
     string "RTC_APPID"
     default "67582ac8******0174410bd1"

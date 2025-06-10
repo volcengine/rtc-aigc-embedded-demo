@@ -205,11 +205,11 @@ python3 RtcAigcService.py
     ```shell
     idf.py set-target esp32s3
     ```
-    3. 设置WIFI账号密码、RTC APPID、服务端地址和端口号
+    3. 设置RTC APPID、服务端地址和端口号
     ```shell
     idf.py menuconfig
     ```
-    进入 `Example Configuration` 菜单，在 `WiFi SSID` 及 `WiFi Password` 中填入你的 WIFI 账号和密码，在 `RTC APPID` 中填入你的 RTC APPID (前往 https://console.volcengine.com/rtc/listRTC 获取)，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
+    进入 `Example Configuration` 菜单，在 `RTC APPID` 中填入你的 RTC APPID (前往 https://console.volcengine.com/rtc/listRTC 获取)，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
 
     4. 设置开发板型号
     ```shell
@@ -240,6 +240,11 @@ python3 RtcAigcService.py
     ```shell
     idf.py monitor
     ```
+4. wifi配网
+    1. 手机找到名形如“VolcRTC-XXXXXX”的wifi热点，连接上wifi。
+    2. 打开浏览器，输入URL_ADDRESS 打开浏览器，输入http://192.168.4.1，进入wifi配网页面。
+    3. 输入wifi名称和密码，点击提交。<br>
+    注意：如果需要更换wifi名称密码，重新启动设备，设备不能在上次连上的wifi范围内，等待30s进入配网模式，重新执行上面wifi配网的3个步骤。
 ## 进阶阅读
 [服务端示例接口说明](server/src/README.md)
 
