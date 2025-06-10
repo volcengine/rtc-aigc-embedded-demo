@@ -1,1 +1,5 @@
 __pycache__
+client/espressif/esp32s3_demo/build
+client/espressif/esp32s3_demo/dependencies.lock
+client/espressif/esp32s3_demo/managed_components
+client/espressif/esp32s3_demo/sdkconfig.old
