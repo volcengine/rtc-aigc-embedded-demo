@@ -268,6 +268,19 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         if "enable_conversation_state_callback" in json_obj and json_obj["enable_conversation_state_callback"] == True:
             enable_conversation_state_callback = True
         
+        # 读取客户端传来的 enable_burst 和 burst_buffer_size 和 burst_interval
+        enable_burst = False
+        if "enable_burst" in json_obj:
+            if json_obj["enable_burst"] == True:
+                enable_burst = True
+        burst_buffer_size = 500
+        if "burst_buffer_size" in json_obj:
+            burst_buffer_size = json_obj["burst_buffer_size"]
+
+        burst_interval = 20
+        if "burst_interval" in json_obj:
+            burst_interval = json_obj["burst_interval"]
+        
         fc_tools = None
         if "fc_tools" in json_obj:
             fc_tools = json_obj["fc_tools"]
@@ -330,7 +343,12 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 "TargetUserId" : [room_info["uid"]],                            # 房间内客户端 SDK 用户对应的 UserId。仅支持传入一个 UserId。注意该值是一个数组
                 "WelcomeMessage" : "你好,有什么可以帮到你的吗",                   # 智能体启动后的欢迎词。
                 "UserId" : room_info["bot_uid"],                                # 智能体的user id
-                "EnableConversationStateCallback" : enable_conversation_state_callback # 是否接收任务状态变化回调。默认值为 false
+                "EnableConversationStateCallback" : enable_conversation_state_callback, # 是否接收任务状态变化回调。默认值为 false
+                "Burst" : {
+                    "Enable" : enable_burst,                                    # 是否开启音频快速发送。默认值 false
+                    "BufferSize" : burst_buffer_size,                           # 接收音频快速发送片段时，客户端可缓存的最大音频时长。取值范围为[10,3600000]，单位为 ms，默认值为 10
+                    "Interval" : burst_interval                                 # 音频快速发送结束后，其他音频内容发送间隔。取值范围为[10,600]，单位为 ms，默认值为10
+                }
             }
         }
         if fc_tools != None and len(fc_tools) > 0 :
