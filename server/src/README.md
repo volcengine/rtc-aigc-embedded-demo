@@ -82,6 +82,18 @@
     # 非必填， json数组，默认值 []
     # function call 工具列表，格式参考 https://www.volcengine.com/docs/6348/1359441
 
+    # vision_enable
+    # 非必填，布尔值，默认值 false
+    # 是否开启视觉功能，参考 https://www.volcengine.com/docs/6348/1408245
+
+    # image_height
+    # 非必填，整数，默认值 720
+    # 截图高度，单位为像素，默认值为 720，建议填写真实图片高度
+
+    # image_detail
+    # 非必填，字符串，默认值 low
+    # 图片处理模式为低或高细节模式，可选值：low, high
+
     ```
 - 返回示例及说明
     ```json

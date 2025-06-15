@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import http.server
+import re
 import socketserver
 import json
 import uuid
@@ -257,6 +258,43 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         llm_prefill = False
         if "llm_prefill" in json_obj and json_obj["llm_prefill"] == True:
             llm_prefill = True
+
+        # 读取客户端传来的 vision_enable
+        vision_enable = False
+        system_messages = "你的名字是小宁，性格幽默又善解人意。你在表达时需简明扼要，有自己的观点。"
+        if "vision_enable" in json_obj and json_obj["vision_enable"] == True:
+            vision_enable = True
+            system_messages = "# 角色                                                                                               \
+                        你是一个智能硬件小助手，能为客户提供情感陪伴和助手服务。                                                             \
+                        # 信息获取                                                                                                   \
+                        用户的语音会被转成文本提供给你，同时用户摄像头拍摄的视频会被转成图片发送给你，你可以结合这些图片感知用户的场景，识别各种目标。   \
+                        # 回复形式                                                                                                   \
+                        你的回复文本会被转成语音发送给用户。                                                                              \
+                        # 任务要求                                                                                                   \
+                        ## 情感陪伴                                                                                                  \
+                        - **态度友好**：对话语气要亲切、热情，让用户感受到温暖和关怀，展现出积极的陪伴态度。                                     \
+                        - **理解共情**：认真倾听用户的话语，理解用户的情感状态，对用户表达的喜怒哀乐给予共情回应，让用户感到被理解和支持。            \
+                        - **话题引导**：当对话陷入沉默或用户情绪低落时，主动发起有趣的话题，引导对话继续，帮助用户缓解负面情绪，提升积极情绪。         \
+                        ## 助手能力                                                                                                  \
+                        - **精准响应**：根据用户的需求和问题，结合图片信息，提供准确、有用的回答和解决方案。                                     \
+                        - **高效服务**：快速处理用户的请求，不拖延，确保及时满足用户的需求。                                                  \
+                        - **持续学习**：不断积累知识和经验，提升自身的服务能力，以便更好地为用户提供多样化的帮助。                                \
+                        # 交流原则                                                                                                   \
+                        - **自然流畅**：回复内容要符合日常交流的习惯，语言表达自然、通顺，避免出现生硬、机械的表述。                              \
+                        - **简洁明了**：回答问题要简洁直接，避免冗长复杂的语句，让用户能够快速理解你的意图。                                     \
+                        - **尊重隐私**：严格保护用户的个人信息和隐私，不泄露用户的任何敏感信息。"
+
+        # 读取客户端传来的 image_height
+        image_height = 720
+        if "image_height" in json_obj:
+            image_height = int(json_obj["image_height"])
+            if image_height > 1080:
+                image_height = 1080
+
+        # 读取客户端传来的 image_detail
+        image_detail = "low"
+        if "image_detail_high" in json_obj and json_obj["image_detail_high"] == True:
+            image_detail = "high"
         
         # 读取客户端传来的 disable_rts_subtitle
         disable_rts_subtitle = False
@@ -314,18 +352,24 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     "Temperature" : 0.1,                                        # 非必填，用于控制生成文本的随机性和创造性，值越大随机性越高。取值范围为（0,1]，默认值为 0.1
                     "TopP" : 0.3,                                               # 非必填，用于控制输出tokens的多样性，值越大输出的tokens类型越丰富。取值范围为（0,1]，默认值为 0.3
                     "SystemMessages" : [                                        # 非必填，大模型 System 角色预设指令，可用于控制模型输出。
-                        "你是一个语言大模型，你只能接收文本数据。用户的语音通过语音识别服务转换成文本，发送给你。有时候语音识别服务会有错误，你可以根据具体语境判断用户的真实意图，遇到实在理解不了的错误语句，可以引导用户换种方式表达。同样的，你输出的文本会通过语音合成服务转换成音频，然后发送给用户。有多种方式可以打断合成的音频，如果你发现用户不记得你前面一句说的是什么，请不要疑惑。在和用户对话时，请牢记：你的名字是小宁，性格幽默又善解人意。你在表达时需简明扼要，有自己的观点。"
+                        system_messages
                     ],
-                    "UserMessages" : [                                          # 非必填，大模型 User 角色预设 Prompt，可用于增强模型的回复质量，模型回复时会参考此处内容。
-                        "user:\"你是谁\"",
-                        "assistant:\"我是问答助手\"",
-                        "user:\"你能干什么\"",
-                        "user:\"我能回答问题\""
+                    "UserPrompts" : [                                          # 非必填，大模型 User 角色预设 Prompt，可用于增强模型的回复质量，模型回复时会参考此处内容。
                     ],
                     "Prefill" : llm_prefill,                                    # 非必填, 将 ASR 中间结果提前送入大模型进行处理以降低延时。开启后会产生额外模型消耗。默认值 false
                     "HistoryLength" : 3,                                        # 非必填，大模型上下文长度，默认 3。
                     # "Tools" : [...]                                           # 非必填，使用 Function calling 功能时，模型可以调用的工具列表 参考：https://www.volcengine.com/docs/6348/1359441
                     # "VisionConfig" : {}                                       # 视觉理解能力配置。仅在推理点选择模型为 doubao-vision-pro 和 doubao-vision-lite 时生效。该功能使用说明参看 https://www.volcengine.com/docs/6348/1408245
+                    "VisionConfig" : {
+                        "Enable" : vision_enable,
+                        "SnapshotConfig": {
+                            "StreamType": 0,                                    # 截图流类型设置为主流
+                            "ImageDetail": image_detail,                        # 图片处理模式为低或高细节模式。
+                            "Height": image_height,                             # 截图高度为 video_height。
+                            "Interval": 1000,                                   # 相邻截图之间的间隔时间为 1000 毫秒。
+                            "ImagesLimit": 1                                    # 最大发送图片数量为 1。
+                        }
+                    }
                 },
                 "SubtitleConfig" : {
                     "DisableRTSSubtitle" : disable_rts_subtitle,                # 非必填，是否关闭房间内字幕回调，默认 false
