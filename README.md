@@ -246,7 +246,8 @@ python3 RtcAigcService.py
     3. 输入wifi名称和密码，点击提交。<br>
     注意：如果需要更换wifi名称密码，重新启动设备，设备不能在上次连上的wifi范围内，等待30s进入配网模式，重新执行上面wifi配网的3个步骤。
 ## 进阶阅读
-[服务端示例接口说明](server/src/README.md)
+- [服务端示例接口说明](server/src/README.md)
+- [开启 TTS burst 功能](docs/TTS_BURST.md)
 
 ## 技术交流
  欢迎加入我们的技术交流群或提出Issue，一起探讨技术，一起学习进步。
