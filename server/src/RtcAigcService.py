@@ -313,11 +313,11 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 enable_burst = True
         burst_buffer_size = 500
         if "burst_buffer_size" in json_obj:
-            burst_buffer_size = json_obj["burst_buffer_size"]
+            burst_buffer_size = int(json_obj["burst_buffer_size"])
 
         burst_interval = 20
         if "burst_interval" in json_obj:
-            burst_interval = json_obj["burst_interval"]
+            burst_interval = int(json_obj["burst_interval"])
         
         fc_tools = None
         if "fc_tools" in json_obj:

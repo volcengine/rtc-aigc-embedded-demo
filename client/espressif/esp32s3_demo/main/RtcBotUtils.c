@@ -31,7 +31,7 @@ const char* common_headers[] = {
 };
 
 int start_voice_bot(rtc_room_info_t* room_info) {
-    char post_data[512];
+    char post_data[1024];
     cJSON *post_jobj = cJSON_CreateObject();
 #ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
     cJSON_AddStringToObject(post_jobj, "audio_codec", "OPUS");
@@ -42,6 +42,11 @@ int start_voice_bot(rtc_room_info_t* room_info) {
 #elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
     cJSON_AddStringToObject(post_jobj, "audio_codec", "AAC");
 #endif
+    // burst 功能
+    cJSON_AddBoolToObject(post_jobj, "enable_burst", 0); // 默认关闭
+    cJSON_AddNumberToObject(post_jobj, "burst_buffer_size", 500); // 500 ms
+    cJSON_AddNumberToObject(post_jobj, "burst_interval", 20);
+
     const char* json_str = cJSON_Print(post_jobj);
     strcpy(post_data, json_str);
     cJSON_Delete(post_jobj);
