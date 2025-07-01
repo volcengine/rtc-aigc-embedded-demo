@@ -96,8 +96,9 @@ static void byte_rtc_on_audio_data(byte_rtc_engine_t engine, const char* channel
     opus_data_cache[1] = data_len & 0xFF;
     memcpy(opus_data_cache + 2, data_ptr, data_len);
     player_pipeline_write(context->player_pipeline, opus_data_cache, data_len + 2);
-#endif
+#else
     player_pipeline_write(context->player_pipeline, data_ptr, data_len);
+#endif
 }
 
 // remote video
