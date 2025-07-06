@@ -335,7 +335,7 @@ static void byte_rtc_task(void *pvParameters) {
     usleep(1000 * 1000);
     byte_rtc_fini(engine);
     usleep(1000 * 1000);
-    byte_rtc_destory(engine);
+    byte_rtc_destroy(engine);
     
     // step 7: stop ai agent or it will not stop until 3 minutes
     stop_voice_bot(room_info);
