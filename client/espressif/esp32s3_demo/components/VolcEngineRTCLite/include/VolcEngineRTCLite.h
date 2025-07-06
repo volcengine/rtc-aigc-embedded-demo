@@ -24,8 +24,8 @@ extern "C" {
 #define __byte_rtc_api__ __attribute__((visibility("default")))
 #endif
 
-#define BYTE_RTC_API_VERSION "1.0.3"
-#define BYTE_RTC_API_VERSION_NUM 0x1003
+#define BYTE_RTC_API_VERSION "1.0.6"
+#define BYTE_RTC_API_VERSION_NUM 0x1006
 
 
 /**
@@ -326,6 +326,12 @@ typedef enum {
      * @brief G711A
      */
     AUDIO_CODEC_TYPE_G711A  = 4,
+
+    /**
+     * @locale zh
+     * @brief G711U
+     */
+    AUDIO_CODEC_TYPE_G711U  = 5,
     
 } audio_codec_type_e;
 
@@ -401,6 +407,12 @@ typedef enum {
      * @brief PCM
      */
     AUDIO_DATA_TYPE_PCM = 5,
+
+    /**
+     * @locale zh
+     * @brief PCMU
+     */
+    AUDIO_DATA_TYPE_PCMU = 6,
 } audio_data_type_e;
 
 /**
@@ -533,7 +545,7 @@ typedef struct {
  * @param code 错误码，参看 error_code_e{@link #error_code_e}
  * @param msg 错误信息
  */
-void (*on_global_error)(byte_rtc_engine_t engine,int code, const char * msg);
+void (*on_global_error)(byte_rtc_engine_t engine, int code, const char* msg);
 
 /**
  * @locale zh
@@ -548,7 +560,7 @@ void (*on_global_error)(byte_rtc_engine_t engine,int code, const char * msg);
  *               - True：重新加入房间
  *               - False：首次加入房间
  */
-void (*on_join_room_success)(byte_rtc_engine_t engine,const char * room, int elapsed_ms, bool rejoin);
+void (*on_join_room_success)(byte_rtc_engine_t engine, const char* room, int elapsed_ms, bool rejoin);
 
 
 /**
@@ -562,7 +574,7 @@ void (*on_join_room_success)(byte_rtc_engine_t engine,const char * room, int ela
  * @param code 错误码，参看 error_code_e{@link #error_code_e}
  * @param msg 错误信息
  */
-void (*on_room_error)(byte_rtc_engine_t engine,const char * room, int code, const char * msg);
+void (*on_room_error)(byte_rtc_engine_t engine, const char* room, int code, const char* msg);
 
 
 /**
@@ -578,7 +590,7 @@ void (*on_room_error)(byte_rtc_engine_t engine,const char * room, int code, cons
  * @param uid 远端用户名
  * @param elapsed_ms 加入房间耗时（保留字段）
  */
-void (*on_user_joined)(byte_rtc_engine_t engine,const char * room, const char * uid,int elapsed_ms);
+void (*on_user_joined)(byte_rtc_engine_t engine, const char* room, const char* uid, int elapsed_ms);
 
 /**
  * @locale zh
@@ -592,7 +604,7 @@ void (*on_user_joined)(byte_rtc_engine_t engine,const char * room, const char * 
  * @param uid 远端用户名
  * @param reason 用户离开房间的原因, 参看 user_offline_reason_e{@link #user_offline_reason_e}
  */
-void (*on_user_offline)(byte_rtc_engine_t engine,const char * room, const char * uid , int reason);
+void (*on_user_offline)(byte_rtc_engine_t engine, const char* room, const char* uid, int reason);
 
 /**
  * @locale zh
@@ -607,7 +619,7 @@ void (*on_user_offline)(byte_rtc_engine_t engine,const char * room, const char *
 *         - true(1)：不发送 <br>
  *        - false(0)：发送
  */
-void (*on_user_mute_audio)(byte_rtc_engine_t engine,const char * room, const char * uid ,int muted);
+void (*on_user_mute_audio)(byte_rtc_engine_t engine, const char* room, const char* uid, int muted);
 
 /**
  * @locale zh
@@ -622,7 +634,7 @@ void (*on_user_mute_audio)(byte_rtc_engine_t engine,const char * room, const cha
 *         - true(1)：不发送 <br>
  *        - false(0)：发送
  */
-void (*on_user_mute_video)(byte_rtc_engine_t engine,const char * room, const char * uid ,int muted);
+void (*on_user_mute_video)(byte_rtc_engine_t engine, const char* room, const char* uid, int muted);
 
 /**
  * @locale zh
@@ -634,7 +646,7 @@ void (*on_user_mute_video)(byte_rtc_engine_t engine,const char * room, const cha
  * @param room 房间名
  * @param uid 远端用户名
  */
-void (*on_key_frame_gen_req)(byte_rtc_engine_t engine,const char * room, const char * uid);
+void (*on_key_frame_gen_req)(byte_rtc_engine_t engine, const char* room, const char* uid);
 
 /**
  * @locale zh
@@ -650,7 +662,7 @@ void (*on_key_frame_gen_req)(byte_rtc_engine_t engine,const char * room, const c
  * @param data_ptr 音频数据
  * @param data_len 音频数据长度，单位字节
  */
-void (*on_audio_data)(byte_rtc_engine_t engine,const char * room, const char * uid ,uint16_t sent_ts,
+void (*on_audio_data)(byte_rtc_engine_t engine, const char* room, const char* uid, uint16_t sent_ts,
     audio_data_type_e codec, const void * data_ptr, size_t data_len);
 
 /**
@@ -670,7 +682,7 @@ void (*on_audio_data)(byte_rtc_engine_t engine,const char * room, const char * u
  * @param data_ptr 视频数据
  * @param data_len 视频数据长度，单位字节
  */
-void (*on_video_data)(byte_rtc_engine_t engine,const char * room, const char * uid ,uint16_t sent_ts,
+void (*on_video_data)(byte_rtc_engine_t engine, const char* room, const char* uid, uint16_t sent_ts,
                       video_data_type_e codec, int is_key_frame,
                       const void * data_ptr, size_t data_len);
 
@@ -685,7 +697,7 @@ void (*on_video_data)(byte_rtc_engine_t engine,const char * room, const char * u
  * @param room 房间名
  * @param target_bps 目标码率，单位 bps
  */
-void (*on_target_bitrate_changed)(byte_rtc_engine_t engine,const char * room, uint32_t target_bps);
+void (*on_target_bitrate_changed)(byte_rtc_engine_t engine, const char* room, uint32_t target_bps);
 
 
 /**
@@ -702,7 +714,7 @@ void (*on_target_bitrate_changed)(byte_rtc_engine_t engine,const char * room, ui
  * @param binary 是否未二进制消息
  */
 
-void (*on_message_received)(byte_rtc_engine_t engine,const char * room,const char * src, const uint8_t * message,int size,bool binary);
+void (*on_message_received)(byte_rtc_engine_t engine, const char* room, const char* src, const uint8_t* message, int size, bool binary);
 
 
 /**
@@ -717,7 +729,7 @@ void (*on_message_received)(byte_rtc_engine_t engine,const char * room,const cha
  * @param error 发送消息错误码，0表示发送成功
  * @param extencontent 扩展信息，暂时未使用
  */
-void (*on_message_send_result)(byte_rtc_engine_t engine,const char * room,int64_t msgid, int error,const char * extencontent);
+void (*on_message_send_result)(byte_rtc_engine_t engine, const char* room, int64_t msgid, int error, const char* extencontent);
 
 /**
  * @locale zh
@@ -729,7 +741,7 @@ void (*on_message_send_result)(byte_rtc_engine_t engine,const char * room,int64_
  * @param engine 通过byte_rtc_create{@link #byte_rtc_create}创建的引擎实例
  * @param room 房间名
  */
-void (*on_token_privilege_will_expire)(byte_rtc_engine_t engine,const char * room);
+void (*on_token_privilege_will_expire)(byte_rtc_engine_t engine, const char* room);
 
 /**
  * @locale zh
@@ -753,6 +765,20 @@ void (*on_license_expire_warning)(byte_rtc_engine_t engine,int daysleft);
  */
 
 void (*on_fini_notify)(byte_rtc_engine_t engine);
+
+
+/**
+ * @locale zh
+ * @type callback
+ * @list 回调
+ * @order 16
+ * @brief agic场景下使用license模式，当配额用尽时，触发该回调。当收到该回调时，请及时续费。当配额用尽的时候，智能体会自动离房，会话已不能继续进行，应用层应该调用反初始化接口，待完成充值之后再重新初始化。
+ * @param engine 通过byte_rtc_create{@link #byte_rtc_create}创建的引擎实例
+ * @param message 配额即将用尽的提示信息
+ * @param extra 扩展信息，暂未使用
+
+ */
+void (*on_quota_exceeded)(byte_rtc_engine_t engine, const char* message, void * extra);
 
 } byte_rtc_event_handler_t;
 
@@ -803,7 +829,7 @@ extern __byte_rtc_api__ void byte_rtc_set_log_level(byte_rtc_engine_t engine,int
  *          - 0：成功
  *          - -1：失败，路径参数无效
  */
-extern __byte_rtc_api__ int byte_rtc_config_log(byte_rtc_engine_t engine,const char * log_path,int size_per_file, int max_file_count);
+extern __byte_rtc_api__ int byte_rtc_config_log(byte_rtc_engine_t engine, const char* log_path, int size_per_file, int max_file_count);
 
 /**
  * @locale zh
@@ -854,7 +880,7 @@ extern __byte_rtc_api__ int byte_rtc_fini(byte_rtc_engine_t engine);
  * @brief 销毁引擎实例,只有在收到on_fini_notify的回调之后，调用此方法才是安全的
  * @param engine 通过byte_rtc_create{@link #byte_rtc_create}创建的引擎实例
  */
-extern __byte_rtc_api__ void byte_rtc_destory(byte_rtc_engine_t engine);
+extern __byte_rtc_api__ void byte_rtc_destroy(byte_rtc_engine_t engine);
 
 
 /**
@@ -927,8 +953,8 @@ extern __byte_rtc_api__ int byte_rtc_set_video_codec(byte_rtc_engine_t engine,vi
  *         - -2：输入参数为空 <br>
  *         - -3：已加入过房间
  */
-extern __byte_rtc_api__ int byte_rtc_join_room(byte_rtc_engine_t engine,const char * room, const char * uid,
-                                                const char * token, byte_rtc_room_options_t * options);
+extern __byte_rtc_api__ int byte_rtc_join_room(byte_rtc_engine_t engine, const char* room, const char* uid,
+                                                const char* token, byte_rtc_room_options_t* options);
 
 
 /**
@@ -944,7 +970,7 @@ extern __byte_rtc_api__ int byte_rtc_join_room(byte_rtc_engine_t engine,const ch
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_leave_room(byte_rtc_engine_t engine,const char * room);
+extern __byte_rtc_api__ int byte_rtc_leave_room(byte_rtc_engine_t engine, const char* room);
 
 /**
  * @locale zh
@@ -961,7 +987,7 @@ extern __byte_rtc_api__ int byte_rtc_leave_room(byte_rtc_engine_t engine,const c
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_renew_token(byte_rtc_engine_t engine,const char * room,const char * token);
+extern __byte_rtc_api__ int byte_rtc_renew_token(byte_rtc_engine_t engine, const char* room, const char* token);
 
 /**
  * @locale zh
@@ -979,7 +1005,7 @@ extern __byte_rtc_api__ int byte_rtc_renew_token(byte_rtc_engine_t engine,const 
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_mute(byte_rtc_engine_t engine,const char * room, const char * uid, bool video, bool mute);
+extern __byte_rtc_api__ int byte_rtc_mute(byte_rtc_engine_t engine, const char* room, const char* uid, bool video, bool mute);
 
 /**
  * @locale zh
@@ -995,7 +1021,7 @@ extern __byte_rtc_api__ int byte_rtc_mute(byte_rtc_engine_t engine,const char * 
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_request_video_key_frame(byte_rtc_engine_t engine,const char * room, const char * remote_uid);
+extern __byte_rtc_api__ int byte_rtc_request_video_key_frame(byte_rtc_engine_t engine, const char* room, const char* remote_uid);
 
 /**
  * @locale zh
@@ -1013,7 +1039,7 @@ extern __byte_rtc_api__ int byte_rtc_request_video_key_frame(byte_rtc_engine_t e
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_send_audio_data(byte_rtc_engine_t engine,const char * room,const void * data_ptr, size_t data_len,
+extern __byte_rtc_api__ int byte_rtc_send_audio_data(byte_rtc_engine_t engine, const char* room, const void * data_ptr, size_t data_len,
                                                    audio_frame_info_t * info_ptr);
 
 /**
@@ -1034,7 +1060,7 @@ extern __byte_rtc_api__ int byte_rtc_send_audio_data(byte_rtc_engine_t engine,co
  *         - -1：引擎实例不存在 <br>
  *         - -2：输入参数为空
  */
-extern __byte_rtc_api__ int byte_rtc_send_video_data(byte_rtc_engine_t engine,const char * room,const void *data_ptr, size_t data_len,
+extern __byte_rtc_api__ int byte_rtc_send_video_data(byte_rtc_engine_t engine, const char* room, const void *data_ptr, size_t data_len,
                                                    video_frame_info_t * info_ptr);
 
 
@@ -1057,8 +1083,8 @@ extern __byte_rtc_api__ int byte_rtc_send_video_data(byte_rtc_engine_t engine,co
  *         - >= 0：消息id<br>
  */
 
-extern __byte_rtc_api__ int64_t byte_rtc_rts_send_message(byte_rtc_engine_t engine,const char * room,const char * target,const void * data_ptr, 
-                                                    size_t data_len,bool binary,rts_message_type type);
+extern __byte_rtc_api__ int64_t byte_rtc_rts_send_message(byte_rtc_engine_t engine, const char* room, const char* target, const void * data_ptr, 
+                                                    size_t data_len, bool binary, rts_message_type type);
 
 /**
  * @locale zh
@@ -1071,7 +1097,7 @@ extern __byte_rtc_api__ int64_t byte_rtc_rts_send_message(byte_rtc_engine_t engi
  *         - 0：成功 <br>
  *         - <0：失败
  */
-extern __byte_rtc_api__ int byte_rtc_set_params(byte_rtc_engine_t engine,const char * params);
+extern __byte_rtc_api__ int byte_rtc_set_params(byte_rtc_engine_t engine, const char* params);
 
 #ifdef __cplusplus
 }
