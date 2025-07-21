@@ -1,12 +1,40 @@
 menu "Example Configuration"
 
+choice AI_AGENT_MODE
+    prompt "Volcano RTC mode or Coze RTC mode"
+    default VOLC_RTC_MODE
+
+    config VOLC_RTC_MODE
+        bool "enable volcano rtc mode"
+
+    config COZE_RTC_MODE
+        bool "enable coze rtc mode"
+endchoice
+
+
+
 config RTC_APPID
     string "RTC_APPID"
     default "67582ac8******0174410bd1"
+    depends on VOLC_RTC_MODE
 
 config AIGENT_SERVER_HOST
     string "AIGC SERVER IP:PORT"
     default "192.***.***.2:8080"
+    depends on VOLC_RTC_MODE
+
+config COZE_SERVER_HOST
+    string "Coze server host: https://www.coze.cn/open/docs/dev_how_to_guides/access_process"
+    default "https://api.coze.cn/v1/audio/rooms"
+    depends on COZE_RTC_MODE
+
+config COZE_AUTH
+    string "Coze authonrization: https://www.coze.cn/open/oauth/pats"
+    depends on COZE_RTC_MODE
+
+config COZE_BOT_ID
+    string "Coze bot id: https://www.coze.cn/open/docs/guides/agent_quick_start"
+    depends on COZE_RTC_MODE
 
 choice AUDIO_CODEC_SUPPORT
     prompt "Audio Codec"
@@ -17,6 +45,7 @@ config AUDIO_CODEC_TYPE_PCM
 
 config AUDIO_CODEC_TYPE_OPUS
     bool "audio codec is opus"
+    depends on VOLC_RTC_MODE
 
 config AUDIO_CODEC_TYPE_G711A
     bool "audio codec is g711a"

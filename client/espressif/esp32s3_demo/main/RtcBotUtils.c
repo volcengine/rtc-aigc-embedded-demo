@@ -8,6 +8,7 @@
 #include "esp_heap_caps.h"
 #include <string.h>
 
+#if defined(CONFIG_VOLC_RTC_MODE)
 static const char *TAG = "RTC_BOT_UTILS";
 
 static void *impl_malloc_fn(size_t size) {
@@ -225,3 +226,5 @@ int interrupt_voice_bot(const rtc_room_info_t* room_info) {
 int voice_bot_function_calling(const rtc_room_info_t* room_info, const char* message) {
     return update_voice_bot(room_info, "function", message);
 }
+
+#endif
