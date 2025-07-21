@@ -35,6 +35,7 @@
 #include "i2s_stream.h"
 #include "AudioPipeline.h"
 #include "RtcBotUtils.h"
+#include "CozeBotUtils.h"
 #include "cJSON.h"
 #include "network.h"
 
@@ -42,6 +43,7 @@
 
 static const char* TAG = "VolcRTCDemo";
 static bool joined = false;
+static bool finished = false;
 
 typedef struct {
     player_pipeline_handle_t player_pipeline;
@@ -205,6 +207,7 @@ static void on_function_calling_message_received(byte_rtc_engine_t engine, const
 }
 
 void on_message_received(byte_rtc_engine_t engine, const char*  room, const char* uid, const uint8_t* message, int size, bool binary) {
+#if defined(CONFIG_VOLC_RTC_MODE)
     // 字幕消息，参考https://www.volcengine.com/docs/6348/1337284
     // subv|length(4)|json str
     //
@@ -234,6 +237,11 @@ void on_message_received(byte_rtc_engine_t engine, const char*  room, const char
     } else {
         ESP_LOGE(TAG, "unknown message.");
     }
+#endif
+}
+
+void on_fini_notify(byte_rtc_engine_t engine) {
+    finished = true;
 }
 
 static void on_key_frame_gen_req(byte_rtc_engine_t engine, const char*  channel, const char*  uid) {}
@@ -267,6 +275,7 @@ static void byte_rtc_task(void *pvParameters) {
         .on_video_data              =   byte_rtc_on_video_data,
         .on_key_frame_gen_req       =   on_key_frame_gen_req,
         .on_message_received        =   on_message_received,
+        .on_fini_notify             =   on_fini_notify,
     };
 
     byte_rtc_engine_t engine = byte_rtc_create(room_info->app_id, &handler);
@@ -334,7 +343,9 @@ static void byte_rtc_task(void *pvParameters) {
     byte_rtc_leave_room(engine, room_info->room_id);
     usleep(1000 * 1000);
     byte_rtc_fini(engine);
-    usleep(1000 * 1000);
+    while(!finished) {
+        usleep(1000 * 100);
+    }
     byte_rtc_destroy(engine);
     
     // step 7: stop ai agent or it will not stop until 3 minutes
