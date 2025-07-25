@@ -1,0 +1,81 @@
+From 81da5ecc567f9b829414b2b3cf1e9476e0a81894 Mon Sep 17 00:00:00 2001
+From: yuhuawei <yuhuawei.123@bytedance.com>
+Date: Thu, 19 Jun 2025 04:52:33 -0700
+Subject: [PATCH] enable vlm
+
+---
+ .../network_transfer/volc_rtc/RtcBotUtils.c               | 8 ++++----
+ .../network_transfer/volc_rtc/volc_rtc_main.c             | 4 ++--
+ projects/common_components/video_engine/video_engine.c    | 8 ++++----
+ 4 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/projects/common_components/network_transfer/volc_rtc/RtcBotUtils.c b/projects/common_components/network_transfer/volc_rtc/RtcBotUtils.c
+index 55837498..382198ff 100755
+--- a/projects/common_components/network_transfer/volc_rtc/RtcBotUtils.c
++++ b/projects/common_components/network_transfer/volc_rtc/RtcBotUtils.c
+@@ -39,10 +39,10 @@ int start_voice_bot(rtc_room_info_t* room_info) {
+     cJSON_AddStringToObject(post_jobj, "end_point_id", DEFAULT_END_POINT_ID);
+     cJSON_AddStringToObject(post_jobj, "voice_type", DEFAULT_VOICE_TYPE);
+     cJSON_AddStringToObject(post_jobj, "audio_codec", "OPUS");
+-    cJSON_AddNumberToObject(post_jobj, "asr_type", 1);
+-    //cJSON_AddBoolToObject(post_jobj, "vision_enable", true);
+-    //cJSON_AddNumberToObject(post_jobj, "image_height", 480);
+-    //cJSON_AddStringToObject(post_jobj, "image_detail", "high");
++    // cJSON_AddNumberToObject(post_jobj, "asr_type", 1);
++    cJSON_AddBoolToObject(post_jobj, "vision_enable", true);
++    cJSON_AddNumberToObject(post_jobj, "image_height", 480);
++    cJSON_AddStringToObject(post_jobj, "image_detail", "high");
+     const char* json_str = cJSON_Print(post_jobj);
+     strcpy(post_data, json_str);
+     cJSON_Delete(post_jobj);
+diff --git a/projects/common_components/network_transfer/volc_rtc/volc_rtc_main.c b/projects/common_components/network_transfer/volc_rtc/volc_rtc_main.c
+index 3aa273c3..209ee671 100755
+--- a/projects/common_components/network_transfer/volc_rtc/volc_rtc_main.c
++++ b/projects/common_components/network_transfer/volc_rtc/volc_rtc_main.c
+@@ -578,7 +578,7 @@ void byte_restart(bool enable_video)
+     if (!byte_runing)
+     {
+         audio_en = true;
+-        video_en = enable_video;
++        video_en = true;
+         byte_start();
+     }
+ }
+@@ -594,7 +594,7 @@ void byte_auto_run(uint8_t reset)
+     if (!byte_runing)
+     {
+         audio_en = true;
+-        video_en = false;
++        video_en = true;
+         byte_start();
+     }
+ }
+diff --git a/projects/common_components/video_engine/video_engine.c b/projects/common_components/video_engine/video_engine.c
+index 1d2e1ecb..c311e874 100755
+--- a/projects/common_components/video_engine/video_engine.c
++++ b/projects/common_components/video_engine/video_engine.c
+@@ -37,8 +37,8 @@ static media_camera_device_t camera_device =
+     .fmt  = PIXEL_FMT_H264,
+ #endif
+     /* expect the width and length */
+-    .info.resolution.width  = 1280,//640,//864,
+-    .info.resolution.height = 720,
++    .info.resolution.width  = 640,//640,//864,
++    .info.resolution.height = 480,
+     .info.fps = FPS25,
+ #elif (CONFIG_VIDEO_ENGINE_USE_DVP_CAMERA)
+     /* DVP Camera */ 
+@@ -52,8 +52,8 @@ static media_camera_device_t camera_device =
+     .fmt  = PIXEL_FMT_H264,
+ #endif
+     /* expect the width and length */
+-    .info.resolution.width  = 1280,
+-    .info.resolution.height = 720,
++    .info.resolution.width  = 640,
++    .info.resolution.height = 480,
+     .info.fps = FPS20,
+ #endif
+ };
+-- 
+2.25.1
+
