@@ -25,11 +25,9 @@ static void impl_free_fn(void *ptr) {
     heap_caps_free(ptr);
 }
 
-char authorization[] = "Bearer pat_tRkjzCStOKeHqU97keUDsAwvSGyguU4kVw3bFcTv6a1OxSGpTOeAgote4C3jMxTD";
-
 const char* common_headers[] = {
     "Content-Type", "application/json",
-    "Authorization", authorization,
+    "Authorization", "Bearer " CONFIG_COZE_AUTH,
     NULL
 };
 
