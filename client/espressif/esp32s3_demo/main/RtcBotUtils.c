@@ -35,6 +35,7 @@ int start_voice_bot(rtc_room_info_t* room_info) {
     cJSON *post_jobj = cJSON_CreateObject();
 #ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
     cJSON_AddStringToObject(post_jobj, "audio_codec", "OPUS");
+    cJSON_AddStringToObject(post_jobj, "room_identifier", "OPUSLOW");
 #elif defined(CONFIG_AUDIO_CODEC_TYPE_PCM) || defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
     cJSON_AddStringToObject(post_jobj, "audio_codec", "G711A");
 #elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
