@@ -1,7 +1,6 @@
 // Copyright (2025) Beijing Volcano Engine Technology Ltd.
 // SPDX-License-Identifier: MIT
 
-// #if defined(CONFIG_COZE_RTC_MODE)
 #include "RtcBotUtils.h"
 #include "RtcHttpUtils.h"
 #include "cJSON.h"
@@ -124,5 +123,3 @@ int interrupt_voice_bot(const rtc_room_info_t* room_info) {
 int voice_bot_function_calling(const rtc_room_info_t* room_info, const char* message) {
     return 0;
 }
-
-// #endif
