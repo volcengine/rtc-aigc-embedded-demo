@@ -117,12 +117,24 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         if audio_codec not in {"OPUS", "G711A", "G722", "AAC"}:
             audio_codec = "G711A"
         
+        room_identifier = ""
+        if "room_identifier" in json_obj:
+            room_identifier = json_obj["room_identifier"]
+        
+        uid_identifier = ""
+        if "uid_identifier" in json_obj:
+            uid_identifier = json_obj["uid_identifier"]
+        
+        bot_identifier = ""
+        if "bot_identifier" in json_obj:
+            bot_identifier = json_obj["bot_identifier"]
+        
         # 根据业务情况，生成 room_id，用户id 或者 从客户端请求中获取
         # 这里简单生成一个随机的 room_id 和 user_id
         uuid_str = uuid.uuid4().hex
-        room_id = audio_codec + uuid_str # 加入aigc策略组后，根据房间id前缀配置rtc音视频传输格式
-        user_id = "user" + uuid_str
-        bot_user_id = "bot" + uuid_str
+        room_id = audio_codec + room_identifier + uuid_str # 加入aigc策略组后，根据房间id前缀配置rtc音视频传输格式
+        user_id = "user" + uid_identifier + uuid_str
+        bot_user_id = "bot" + bot_identifier + uuid_str
         expire_time = int(time.time()) + 3600 * 48 # rtc token 48h
         token = AccessToken.AccessToken(RTC_APP_ID, RTC_APP_KEY, room_id, user_id)
         token.add_privilege(AccessToken.PrivSubscribeStream, expire_time)
