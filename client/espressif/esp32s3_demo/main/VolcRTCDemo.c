@@ -206,6 +206,48 @@ static void on_function_calling_message_received(byte_rtc_engine_t engine, const
    
 }
 
+// 参考：https://www.volcengine.com/docs/6348/1415216
+static void on_conversion_status_message_received(byte_rtc_engine_t engine, const cJSON* root) {
+    cJSON* stage_obj = cJSON_GetObjectItem(root, "Stage");
+    if (stage_obj != NULL) {
+        cJSON* code_obj = cJSON_GetObjectItem(stage_obj, "Code");
+        if (code_obj != NULL) {
+            ESP_LOGI(TAG, "conversion status message, code: %d\n", (int)cJSON_GetNumberValue(code_obj));
+        }
+        cJSON* description_obj = cJSON_GetObjectItem(stage_obj, "Description");
+        if (description_obj != NULL) {
+            ESP_LOGI(TAG, "conversion status message, description: %s\n", cJSON_GetStringValue(description_obj));
+        }
+    }
+    cJSON* task_id_obj = cJSON_GetObjectItem(root, "TaskId");
+    if (task_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, task_id: %s\n", cJSON_GetStringValue(task_id_obj));
+    }
+    cJSON* user_id_obj = cJSON_GetObjectItem(root, "UserId");
+    if (user_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, user_id: %s\n", cJSON_GetStringValue(user_id_obj));
+    }
+    cJSON* round_id_obj = cJSON_GetObjectItem(root, "RoundId");
+    if (round_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, round_id: %d\n", (int)cJSON_GetNumberValue(round_id_obj));
+    }
+    cJSON* event_time_obj = cJSON_GetObjectItem(root, "EventTime");
+    if (event_time_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, event_time: %d\n", (int)cJSON_GetNumberValue(event_time_obj));
+    }
+}
+
+static bool _is_target_message(const uint8_t* message, const char* target) {
+    if (message == NULL || target == NULL) {
+        return false;
+    }
+    // Check if the first 4 bytes match the magic number for "subv"
+    if (*(const uint32_t*)message != *(const uint32_t*)target) {
+        return false;
+    }
+    return true;
+}
+
 void on_message_received(byte_rtc_engine_t engine, const char*  room, const char* uid, const uint8_t* message, int size, bool binary) {
 #if defined(CONFIG_VOLC_RTC_MODE)
     // 字幕消息，参考https://www.volcengine.com/docs/6348/1337284
@@ -213,6 +255,9 @@ void on_message_received(byte_rtc_engine_t engine, const char*  room, const char
     //
     // function calling 消息，参考https://www.volcengine.com/docs/6348/1359441
     // tool|length(4)|json str
+    //
+    // conversion status 消息，参考https://www.volcengine.com/docs/6348/1415216
+    // conv|length(4)|json str
 
     static char message_buffer[4096];
     if (size > 8) {
@@ -221,12 +266,15 @@ void on_message_received(byte_rtc_engine_t engine, const char*  room, const char
         message_buffer[size + 1] = 0;
         cJSON *root = cJSON_Parse(message_buffer + 8);
         if (root != NULL) {
-            if (message[0] == 's' && message[1] == 'u' && message[2] == 'b' && message[3] == 'v') {
+            if (_is_target_message(message, "subv")) {
                 // 字幕消息
                 on_subtitle_message_received(engine, root);
-            } else if (message[0] == 't' && message[1] == 'o' && message[2] == 'o' && message[3] == 'l') {
+            } else if (_is_target_message(message, "tool")) {
                 // function calling 消息
                 on_function_calling_message_received(engine, root, message_buffer + 8);
+            } else if (_is_target_message(message, "conv")) {
+                // conversion status 消息
+                on_conversion_status_message_received(engine, root);
             } else {
                 ESP_LOGE(TAG, "unknown json message: %s", message_buffer + 8);
             }
