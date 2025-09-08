@@ -1,8 +1,8 @@
 本教程将指导你如何在乐鑫 ESP32-S3-Korvo-2 或 AtomS3R 开发板上运行火山引擎 RTC AIGC Demo，实现与 AI 实时对话。
 
-## 开通服务并运行服务端
+## 快速开始
 
-具体操作，请参考 [接入全流程指引](../README.md)。
+具体操作，请参考 [官网文档](https://www.volcengine.com/docs/6348/1806625)。
 
 ## 运行设备端（乐鑫）
 
@@ -79,11 +79,11 @@
     ```bash
     idf.py set-target esp32s3
     ```
-3. 设置 RTC APPID、服务端地址和端口号。
+3. 设置 实例ID、产品ID、产品秘钥、设备ID等参数。
     ```bash
     idf.py menuconfig
     ```
-    进入 `Example Configuration` 菜单，在 `RTC APPID` 中填入你的 RTC APPID，在 `AIGENT Server Host` 中填入你的服务端地址和端口号，并保存。
+    进入 `Example Configuration` 菜单，在 `volcano instance id` 中填入你的实例ID，在 `volcano product key` 中填入你的产品ID，在 `volcano product secret` 中填入你的产品秘钥，在 `device name` 中填入你的设备ID， 在 `bot id` 中填入你的智能体ID，并保存。
 4. 设置开发板型号。
     ```bash
     idf.py menuconfig
