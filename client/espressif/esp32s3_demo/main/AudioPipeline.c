@@ -54,12 +54,31 @@ static const char *TAG = "AUDIO_PIPELINE";
 #define CHANNEL_NUM                 2
 #endif
 
-
+#if (RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+#define CODEC_NAME          "opus"
 #define CODEC_SAMPLE_RATE   16000
+#define BIT_RATE            32000
+#define COMPLEXITY          10
+#define FRAME_TIME_MS       20 
+
+#define DEC_SAMPLE_RATE     16000
+#define DEC_BIT_RATE        16000
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+#define CODEC_NAME          "aac"
+#define CODEC_SAMPLE_RATE   16000
+#define BIT_RATE            80000
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+#define CODEC_NAME          "g711a"
+#define CODEC_SAMPLE_RATE   8000
+#elif (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
+#define CODEC_NAME          "g711a"
+#define CODEC_SAMPLE_RATE   8000
+#endif
 
 struct  recorder_pipeline_t {
     audio_pipeline_handle_t audio_pipeline;
     audio_element_handle_t i2s_stream_reader;
+    audio_element_handle_t audio_encoder;
     audio_element_handle_t raw_reader;
     audio_element_handle_t rsp;
     audio_element_handle_t algo_aec;
@@ -69,6 +88,7 @@ struct  recorder_pipeline_t {
 struct  player_pipeline_t {
     audio_pipeline_handle_t audio_pipeline;
     audio_element_handle_t raw_writer;
+    audio_element_handle_t audio_decoder;
     audio_element_handle_t rsp;
     audio_element_handle_t i2s_stream_writer;
 };
@@ -99,6 +119,30 @@ static audio_element_handle_t create_record_i2s_stream(void)
     return i2s_stream_init(&i2s_cfg);
 }
 
+static audio_element_handle_t create_record_encoder_stream(void)
+{
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    raw_opus_enc_config_t opus_cfg = RAW_OPUS_ENC_CONFIG_DEFAULT();
+    opus_cfg.sample_rate        = CODEC_SAMPLE_RATE;
+    opus_cfg.channel            = CHANNEL;
+    opus_cfg.bitrate            = BIT_RATE;
+    opus_cfg.complexity         = 0; // COMPLEXITY;
+    opus_cfg.task_core          = 1;
+    return raw_opus_encoder_init(&opus_cfg);
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+    aac_encoder_cfg_t aac_cfg = DEFAULT_AAC_ENCODER_CONFIG();
+    aac_cfg.sample_rate        = CODEC_SAMPLE_RATE;
+    aac_cfg.channel            = CHANNEL;
+    aac_cfg.bitrate            = BIT_RATE;
+    pipeline->audio_encoder = aac_encoder_init(&aac_cfg);
+    return audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+    g711_encoder_cfg_t g711_cfg = DEFAULT_G711_ENCODER_CONFIG();
+    return g711_encoder_init(&g711_cfg);
+#else
+    return NULL;
+#endif
+}
 
 static audio_element_handle_t create_record_raw_stream(void)
 {
@@ -115,6 +159,7 @@ static audio_element_handle_t create_record_algo_stream(void)
 {
     ESP_LOGI(TAG, "[3.1] Create algorithm stream for aec");
     algorithm_stream_cfg_t algo_config = ALGORITHM_STREAM_CFG_DEFAULT();
+    // algo_config.swap_ch = true;
     algo_config.sample_rate = ALGO_SAMPLE_RATE;
     algo_config.out_rb_size = 256;
     algo_config.algo_mask = ALGORITHM_STREAM_DEFAULT_MASK | ALGORITHM_STREAM_USE_AGC;
@@ -142,13 +187,29 @@ recorder_pipeline_handle_t recorder_pipeline_open()
     pipeline->algo_aec = create_record_algo_stream();
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->algo_aec, "algo");
 
+#ifndef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
     pipeline->rsp = create_resample_stream(I2S_SAMPLE_RATE, 1, CODEC_SAMPLE_RATE, 1);
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->rsp, "rsp");
+#endif
+
+    pipeline->audio_encoder = create_record_encoder_stream();
+    if (pipeline->audio_encoder) {
+        audio_pipeline_register(pipeline->audio_pipeline, pipeline->audio_encoder, CODEC_NAME);
+    }
 
     pipeline->raw_reader = create_record_raw_stream();
     audio_pipeline_register(pipeline->audio_pipeline, pipeline->raw_reader, "raw");
 
-    const char *link_tag[] = {"i2s", "algo", "raw"};
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    const char *link_tag[] = {"i2s", "algo", CODEC_NAME, "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+    const char *link_tag[] = {"i2s", "aac", "rsp", CODEC_NAME, "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+    const char *link_tag[] = {"i2s", "algo", "rsp", "g711a", "raw"};
+#elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
+    const char *link_tag[] = {"i2s", "algo", "rsp", "raw"};
+#endif
+
     audio_pipeline_link(pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
     return pipeline;
 }
@@ -161,6 +222,10 @@ void recorder_pipeline_close(recorder_pipeline_handle_t pipeline)  {
     if (pipeline->i2s_stream_reader) {
         audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->i2s_stream_reader);
         audio_element_deinit(pipeline->i2s_stream_reader);
+    }
+    if (pipeline->audio_encoder) {
+        audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->audio_encoder);
+        audio_element_deinit(pipeline->audio_encoder);
     }
     if (pipeline->raw_reader) {
         audio_pipeline_unregister(pipeline->audio_pipeline, pipeline->raw_reader);
@@ -184,7 +249,15 @@ void recorder_pipeline_run(recorder_pipeline_handle_t pipeline){
 };
 
 int recorder_pipeline_get_default_read_size(recorder_pipeline_handle_t pipeline){
-        return 3200;
+    #if defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+        return 80;
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC)
+        return -1;//
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A)
+        return 160;
+    #elif defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
+        return 320;
+    #endif
 };
 
 audio_element_handle_t recorder_pipeline_get_raw_reader(recorder_pipeline_handle_t pipeline){
@@ -221,6 +294,27 @@ static audio_element_handle_t create_player_i2s_stream(void)
     return stream;
 }
 
+static audio_element_handle_t create_player_decoder_stream(void)
+{
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    raw_opus_dec_cfg_t opus_dec_cfg = RAW_OPUS_DEC_CONFIG_DEFAULT();
+    opus_dec_cfg.enable_frame_length_prefix = true;
+    opus_dec_cfg.sample_rate = DEC_SAMPLE_RATE;
+    opus_dec_cfg.channels = 1;
+    opus_dec_cfg.task_core = 1;
+    return raw_opus_decoder_init(&opus_dec_cfg);
+#elif RTC_DEMO_AUDIO_PIPELINE_CODEC_AAC
+    aac_decoder_cfg_t  aac_dec_cfg  = DEFAULT_AAC_DECODER_CONFIG();
+    return aac_decoder_init(&aac_dec_cfg);
+#elif RTC_DEMO_AUDIO_PIPELINE_CODEC_G711A
+    g711_decoder_cfg_t g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
+    g711_dec_cfg.out_rb_size = 8 * 1024;
+    return g711_decoder_init(&g711_dec_cfg);
+#else
+    return NULL;
+#endif
+}
+
 player_pipeline_handle_t player_pipeline_open(void) {
     player_pipeline_handle_t player_pipeline = heap_caps_calloc(1, sizeof(player_pipeline_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT);
     esp_log_level_set("*", ESP_LOG_WARN);
@@ -231,17 +325,31 @@ player_pipeline_handle_t player_pipeline_open(void) {
     player_pipeline->audio_pipeline = audio_pipeline_init(&pipeline_cfg);
     mem_assert(pipeline);
 
+    
     player_pipeline->raw_writer = create_player_raw_stream();
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->raw_writer, "raw");
 
     player_pipeline->i2s_stream_writer = create_player_i2s_stream();
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->i2s_stream_writer, "i2s");
 
+#ifndef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
     player_pipeline->rsp = create_resample_stream(CODEC_SAMPLE_RATE, 1, I2S_SAMPLE_RATE, CHANNEL_NUM);
     audio_element_set_output_timeout(player_pipeline->rsp, portMAX_DELAY);
     audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->rsp, "rsp");
+#endif
 
+    player_pipeline->audio_decoder = create_player_decoder_stream();
+    if (player_pipeline->audio_decoder != NULL) {
+        audio_pipeline_register(player_pipeline->audio_pipeline, player_pipeline->audio_decoder, "dec");
+    }
+    
+#if defined (RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM)
     const char *link_tag[] = {"raw", "rsp", "i2s"};
+#elif defined(RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS)
+const char *link_tag[] = {"raw", "dec", "i2s"};
+#else
+    const char *link_tag[] = {"raw", "dec", "rsp", "i2s"};
+#endif
     audio_pipeline_link(player_pipeline->audio_pipeline, &link_tag[0], sizeof(link_tag) / sizeof(link_tag[0]));
 
     return player_pipeline;
@@ -260,6 +368,10 @@ void player_pipeline_close(player_pipeline_handle_t player_pipeline){
     if (player_pipeline->raw_writer) {
         audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->raw_writer);
         audio_element_deinit(player_pipeline->raw_writer);
+    }
+    if (player_pipeline->audio_decoder) {
+        audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->audio_decoder);
+        audio_element_deinit(player_pipeline->audio_decoder); 
     }
     if (player_pipeline->rsp) {
         audio_pipeline_unregister(player_pipeline->audio_pipeline, player_pipeline->rsp);

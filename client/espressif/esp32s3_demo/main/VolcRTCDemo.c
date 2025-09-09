@@ -18,8 +18,8 @@
 #include "freertos/task.h"
 #include "esp_heap_task_info.h"
 #include "esp_random.h"
-#include "esp_sntp.h"
 
+#include <VolcEngineRTCLite.h>
 #include "freertos/semphr.h"
 #include "esp_err.h"
 #include "sdkconfig.h"
@@ -34,228 +34,373 @@
 #include "fatfs_stream.h"
 #include "i2s_stream.h"
 #include "AudioPipeline.h"
+#include "RtcBotUtils.h"
+#include "CozeBotUtils.h"
 #include "cJSON.h"
 #include "network.h"
-#include "volc_conv_ai.h"
 
 #define STATS_TASK_PRIO     5
 
 static const char* TAG = "VolcRTCDemo";
-
-#define CONV_AI_CONFIG_FORMAT "{\
-  \"ver\": 1,\
-  \"iot\": {\
-    \"instance_id\": \"%s\",\
-    \"product_key\": \"%s\",\
-    \"product_secret\": \"%s\",\
-    \"device_name\": \"%s\",\
-    \"host\": \"%s\"\
-  },\
-  \"ws\": {\
-    \"aigw_path\": \"%s\"\
-  }\
-}"
+static bool joined = false;
+static bool finished = false;
 
 typedef struct {
     player_pipeline_handle_t player_pipeline;
-    volc_event_handler_t volc_event_handler;
-    volc_engine_t engine;
+    rtc_room_info_t* room_info;
+    char remote_uid[128];
 } engine_context_t;
+// byte rtc lite callbacks
+static void byte_rtc_on_join_room_success(byte_rtc_engine_t engine, const char* channel, int elapsed_ms, bool rejoin) {
+    ESP_LOGI(TAG, "join channel success %s elapsed %d ms now %d ms\n", channel, elapsed_ms, elapsed_ms);
+    joined = true;
+};
 
-static char config_buf[1024] = {0};
-static engine_context_t engine_ctx = {0};
-static bool is_ready = false;
+static void byte_rtc_on_rejoin_room_success(byte_rtc_engine_t engine, const char* channel, int elapsed_ms){
+    // g_byte_rtc_data.channel_joined = TRUE;
+    ESP_LOGI(TAG, "rejoin channel success %s\n", channel);
+};
 
-static void _on_volc_event(volc_engine_t handle, volc_event_t* event, void* user_data)
-{
-    switch (event->code) {
-        case VOLC_EV_CONNECTED:
-            is_ready = true;
-            printf("Volc Engine connected\n");
-            break;
-        case VOLC_EV_DISCONNECTED:
-            is_ready = false;
-            printf("Volc Engine disconnected\n");
-            break;
-        default:
-            printf("Volc Engine event: %d\n", event->code);
-            break;
+static void byte_rtc_on_user_joined(byte_rtc_engine_t engine, const char* channel, const char* user_name, int elapsed_ms){
+    ESP_LOGI(TAG, "remote user joined  %s:%s\n", channel, user_name);
+    engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
+    strcpy(context->remote_uid, user_name);
+};
+
+static void byte_rtc_on_user_offline(byte_rtc_engine_t engine, const char* channel, const char* user_name, int reason){
+    ESP_LOGI(TAG, "remote user offline  %s:%s\n", channel, user_name);
+};
+
+static void byte_rtc_on_user_mute_audio(byte_rtc_engine_t engine, const char* channel, const char* user_name, int muted){
+    ESP_LOGI(TAG, "remote user mute audio  %s:%s %d\n", channel, user_name, muted);
+};
+
+static void byte_rtc_on_user_mute_video(byte_rtc_engine_t engine, const char* channel, const char* user_name, int muted){
+    ESP_LOGI(TAG, "remote user mute video  %s:%s %d\n", channel, user_name, muted);
+};
+
+static void byte_rtc_on_connection_lost(byte_rtc_engine_t engine, const char* channel){
+    ESP_LOGI(TAG, "connection Lost  %s\n", channel);
+};
+
+static void byte_rtc_on_room_error(byte_rtc_engine_t engine, const char* channel, int code, const char* msg){
+    ESP_LOGE(TAG, "error occur %s %d %s\n", channel, code, msg?msg:"");
+};
+
+// remote audio
+static void byte_rtc_on_audio_data(byte_rtc_engine_t engine, const char* channel, const char*  uid , uint16_t sent_ts,
+                      audio_data_type_e codec, const void* data_ptr, size_t data_len){
+    // ESP_LOGI(TAG, "byte_rtc_on_audio_data... len %d\n", data_len);
+    engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_OPUS
+    static char opus_data_cache[1024]; 
+    opus_data_cache[0] = (data_len >> 8) & 0xFF;
+    opus_data_cache[1] = data_len & 0xFF;
+    memcpy(opus_data_cache + 2, data_ptr, data_len);
+    player_pipeline_write(context->player_pipeline, opus_data_cache, data_len + 2);
+#else
+    player_pipeline_write(context->player_pipeline, data_ptr, data_len);
+#endif
+}
+
+// remote video
+static void byte_rtc_on_video_data(byte_rtc_engine_t engine, const char*  channel, const char* uid, uint16_t sent_ts,
+                      video_data_type_e codec, int is_key_frame,
+                      const void * data_ptr, size_t data_len){
+    ESP_LOGI(TAG, "byte_rtc_on_video_data... len %d\n", data_len);
+}
+
+// remote message
+// 字幕消息 参考https://www.volcengine.com/docs/6348/1337284
+static void on_subtitle_message_received(byte_rtc_engine_t engine, const cJSON* root) {
+    /*
+        {
+            "data" : 
+            [
+                {
+                    "definite" : false,
+                    "language" : "zh",
+                    "mode" : 1,
+                    "paragraph" : false,
+                    "sequence" : 0,
+                    "text" : "\\u4f60\\u597d",
+                    "userId" : "voiceChat_xxxxx"
+                }
+            ],
+            "type" : "subtitle"
+        }
+    */
+    cJSON * type_obj = cJSON_GetObjectItem(root, "type");
+    if (type_obj != NULL && strcmp("subtitle", cJSON_GetStringValue(type_obj)) == 0) {
+        cJSON* data_obj_arr = cJSON_GetObjectItem(root, "data");
+        cJSON* obji = NULL;
+        cJSON_ArrayForEach(obji, data_obj_arr) {
+            cJSON* user_id_obj = cJSON_GetObjectItem(obji, "userId");
+            cJSON* text_obj = cJSON_GetObjectItem(obji, "text");
+            if (user_id_obj && text_obj) {
+                ESP_LOGE(TAG, "subtitle:%s:%s", cJSON_GetStringValue(user_id_obj), cJSON_GetStringValue(text_obj));
+            }
+        }
     }
 }
 
-static void _on_volc_conversation_status(volc_engine_t handle, volc_conv_status_e status, void* user_data)
-{
-    printf("conversation status changed: %d\n", status);
+// function calling 消息 参考 https://www.volcengine.com/docs/6348/1359441
+static void on_function_calling_message_received(byte_rtc_engine_t engine, const cJSON* root, const char* json_str) {
+    /*
+        {
+            "subscriber_user_id" : "",
+            "tool_calls" : 
+            [
+                {
+                    "function" : 
+                    {
+                        "arguments" : "{\\"location\\": \\"\\u5317\\u4eac\\u5e02\\"}",
+                        "name" : "get_current_weather"
+                    },
+                    "id" : "call_py400kek0e3pczrqdxgnb3lo",
+                    "type" : "function"
+                }
+            ]
+        }
+    */
+    // 收到function calling 消息，需要根据具体情况要在服务端处理还是客户端处理
+
+    engine_context_t* context = (engine_context_t *) byte_rtc_get_user_data(engine);
+    
+    // 服务端处理：
+    // voice_bot_function_calling(context->room_info, json_str);
+
+    // 在客户端处理,通过byte_rtc_rts_send_message接口通知智能体
+    /*cJSON* tool_obj_arr = cJSON_GetObjectItem(root, "tool_calls");
+    cJSON* obji = NULL;
+    cJSON_ArrayForEach(obji, tool_obj_arr) {
+        cJSON* id_obj = cJSON_GetObjectItem(obji, "id");
+        cJSON* function_obj = cJSON_GetObjectItem(obji, "function");
+        if (id_obj && function_obj) {
+            cJSON* arguments_obj = cJSON_GetObjectItem(function_obj, "arguments");
+            cJSON* name_obj = cJSON_GetObjectItem(function_obj, "name");
+            cJSON* location_obj = cJSON_GetObjectItem(arguments_obj, "arguments");
+            const char* func_name = cJSON_GetStringValue(name_obj);
+            const char* loction = cJSON_GetStringValue(location_obj);
+            const char* func_id = cJSON_GetStringValue(id_obj);
+
+            if (strcmp(func_name, "get_current_weather") == 0) {
+                cJSON *fc_obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(fc_obj, "ToolCallID", func_id);
+                cJSON_AddStringToObject(fc_obj, "Content", "今天白天风和日丽，天气晴朗，晚上阵风二级。");
+                char *json_string = cJSON_Print(fc_obj);
+                static char fc_message_buffer[256] = {'f', 'u', 'n', 'c'};
+                int json_str_len = strlen(json_string);
+                fc_message_buffer[4] = (json_str_len >> 24) & 0xff;
+                fc_message_buffer[5] = (json_str_len >> 16) & 0xff;
+                fc_message_buffer[6] = (json_str_len >> 8) & 0xff;
+                fc_message_buffer[7] = (json_str_len >> 0) & 0xff;
+                memcpy(fc_message_buffer + 8, json_string, json_str_len);
+                ESP_LOGE(TAG, "send message: %s", json_string);
+                cJSON_Delete(fc_obj);
+
+                byte_rtc_rts_send_message(engine, context->room_info->room_id, context->remote_uid, fc_message_buffer, json_str_len + 8, 1, RTS_MESSAGE_RELIABLE);
+            }
+        }
+    }*/
+   
 }
 
-static void _on_volc_audio_data(volc_engine_t handle, const void* data_ptr, size_t data_len, volc_audio_frame_info_t* info_ptr, void* user_data)
-{
-	int error = 0;
-	engine_context_t* demo = (engine_context_t*)user_data;
-	if (demo == NULL) {
-		printf("demo is NULL\n");
-		return;
-	}
-    if (demo->player_pipeline == NULL) {
-        printf("player pipeline is NULL\n");
+// 参考：https://www.volcengine.com/docs/6348/1415216
+static void on_conversion_status_message_received(byte_rtc_engine_t engine, const cJSON* root) {
+    cJSON* stage_obj = cJSON_GetObjectItem(root, "Stage");
+    if (stage_obj != NULL) {
+        cJSON* code_obj = cJSON_GetObjectItem(stage_obj, "Code");
+        if (code_obj != NULL) {
+            ESP_LOGI(TAG, "conversion status message, code: %d\n", (int)cJSON_GetNumberValue(code_obj));
+        }
+        cJSON* description_obj = cJSON_GetObjectItem(stage_obj, "Description");
+        if (description_obj != NULL) {
+            ESP_LOGI(TAG, "conversion status message, description: %s\n", cJSON_GetStringValue(description_obj));
+        }
+    }
+    cJSON* task_id_obj = cJSON_GetObjectItem(root, "TaskId");
+    if (task_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, task_id: %s\n", cJSON_GetStringValue(task_id_obj));
+    }
+    cJSON* user_id_obj = cJSON_GetObjectItem(root, "UserId");
+    if (user_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, user_id: %s\n", cJSON_GetStringValue(user_id_obj));
+    }
+    cJSON* round_id_obj = cJSON_GetObjectItem(root, "RoundId");
+    if (round_id_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, round_id: %d\n", (int)cJSON_GetNumberValue(round_id_obj));
+    }
+    cJSON* event_time_obj = cJSON_GetObjectItem(root, "EventTime");
+    if (event_time_obj != NULL) {
+        ESP_LOGI(TAG, "conversion status message, event_time: %d\n", (int)cJSON_GetNumberValue(event_time_obj));
+    }
+}
+
+static bool _is_target_message(const uint8_t* message, const char* target) {
+    if (message == NULL || target == NULL) {
+        return false;
+    }
+    // Check if the first 4 bytes match the magic number for "subv"
+    if (*(const uint32_t*)message != *(const uint32_t*)target) {
+        return false;
+    }
+    return true;
+}
+
+void on_message_received(byte_rtc_engine_t engine, const char*  room, const char* uid, const uint8_t* message, int size, bool binary) {
+#if defined(CONFIG_VOLC_RTC_MODE)
+    // 字幕消息，参考https://www.volcengine.com/docs/6348/1337284
+    // subv|length(4)|json str
+    //
+    // function calling 消息，参考https://www.volcengine.com/docs/6348/1359441
+    // tool|length(4)|json str
+    //
+    // conversion status 消息，参考https://www.volcengine.com/docs/6348/1415216
+    // conv|length(4)|json str
+
+    static char message_buffer[4096];
+    if (size > 8) {
+        memcpy(message_buffer, message, size);
+        message_buffer[size] = 0;
+        message_buffer[size + 1] = 0;
+        cJSON *root = cJSON_Parse(message_buffer + 8);
+        if (root != NULL) {
+            if (_is_target_message(message, "subv")) {
+                // 字幕消息
+                on_subtitle_message_received(engine, root);
+            } else if (_is_target_message(message, "tool")) {
+                // function calling 消息
+                on_function_calling_message_received(engine, root, message_buffer + 8);
+            } else if (_is_target_message(message, "conv")) {
+                // conversion status 消息
+                on_conversion_status_message_received(engine, root);
+            } else {
+                ESP_LOGE(TAG, "unknown json message: %s", message_buffer + 8);
+            }
+            cJSON_Delete(root);
+        } else {
+            ESP_LOGE(TAG, "unknown message.");
+        }
+    } else {
+        ESP_LOGE(TAG, "unknown message.");
+    }
+#endif
+}
+
+void on_fini_notify(byte_rtc_engine_t engine) {
+    finished = true;
+}
+
+static void on_key_frame_gen_req(byte_rtc_engine_t engine, const char*  channel, const char*  uid) {}
+// byte rtc lite callbacks end.
+
+
+static void byte_rtc_task(void *pvParameters) {
+    rtc_room_info_t* room_info = heap_caps_malloc(sizeof(rtc_room_info_t),  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // step 1: start ai agent & get room info
+    int start_ret = start_voice_bot(room_info);
+    if (start_ret != 200) {
+        ESP_LOGE(TAG, "Bot start Failed, ret = %d", start_ret);
         return;
     }
-    player_pipeline_write(demo->player_pipeline, data_ptr, data_len);
-}
 
-static void _on_volc_video_data(volc_engine_t handle, const void* data_ptr, size_t data_len, volc_video_frame_info_t* info_ptr, void* user_data)
-{
-}
-
-static void _on_volc_message_data(volc_engine_t handle, const void* message, size_t size, volc_message_info_t* info_ptr, void* user_data)
-{
-    engine_context_t* demo = (engine_context_t*)user_data;
-    static int cnt = 0;
-    printf("--------------%d----------------\r\n", cnt++);
-    printf("%.*s", (int)size, (const char *)message);
-    printf("------------------------------\r\n");
-}
-
-void initialize_sntp(void) {
-    ESP_LOGI(TAG, "Initializing SNTP");
-    
-    // 设置SNTP操作模式为轮询（客户端）
-    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    
-    // 设置NTP服务器（可以设置多个备用）
-    esp_sntp_setservername(0, "pool.ntp.org");          // 主服务器
-    esp_sntp_setservername(1, "cn.pool.ntp.org");       // 备用服务器：中国区
-    esp_sntp_setservername(2, "ntp1.aliyun.com");       // 备用服务器：阿里云
-    
-    // 初始化SNTP服务
-    esp_sntp_init();
-    
-    // 设置时区（例如北京时间CST-8）
-    setenv("TZ", "CST-8", 1);
-    tzset();
-}
-
-void print_current_time(void) {
-    time_t now;
-    struct tm timeinfo;
-    char strftime_buf[64];
-    
-    time(&now);
-    localtime_r(&now, &timeinfo);
-    
-    // 格式化输出时间
-    strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
-    ESP_LOGI(TAG, "Current time: %s", strftime_buf);
-}
-
-void wait_for_time_sync(void) {
-    ESP_LOGI(TAG, "Waiting for time synchronization...");
-    
-    // 检查时间是否已同步（1970年之后）
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
-    int retry_count = 15; // 最大重试次数
-    
-    while (timeinfo.tm_year < (2024 - 1900) && retry_count > 0) {
-        ESP_LOGI(TAG, "Time not set yet, retrying... (%d)", retry_count);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-        time(&now);
-        localtime_r(&now, &timeinfo);
-        retry_count--;
-    }
-    
-    if (retry_count > 0) {
-        print_current_time();
-    } else {
-        ESP_LOGE(TAG, "Failed to synchronize time within timeout period");
-    }
-}
-
-static void sys_monitor_task(void *pvParameters) {
-    static char run_info[1024] = { 0 };
-    while (1) {
-        vTaskGetRunTimeStats(run_info);
-        printf("Task Runtime Stats:\n%s", run_info);
-        printf("--------------------------------\n");
-        vTaskDelay(pdMS_TO_TICKS(5000));
-    }
-}
-
-static uint64_t __get_time_ms(void) {
-    struct timespec now_time;
-    clock_gettime(CLOCK_REALTIME, &now_time);
-    return now_time.tv_sec * 1000 + now_time.tv_nsec / 1000000;
-}
-
-static void conv_ai_task(void *pvParameters) {
-    int error = 0;
-    // step 1: start audio capture & play
+    // step 2: start audio capture & play
     recorder_pipeline_handle_t pipeline = recorder_pipeline_open();
     player_pipeline_handle_t player_pipeline = player_pipeline_open();
     recorder_pipeline_run(pipeline);
     player_pipeline_run(player_pipeline);
 
-
-    // step 2: create ai agent
-    snprintf(config_buf, sizeof(config_buf), CONV_AI_CONFIG_FORMAT,
-             CONFIG_VOLC_INSTANCE_ID,
-             CONFIG_VOLC_PRODUCT_KEY,
-             CONFIG_VOLC_PRODUCT_SECRET,
-             CONFIG_VOLC_DEVICE_NAME,
-             CONFIG_VOLC_HOST,
-             CONFIG_VOLC_AIGW_PATH);
-    ESP_LOGI(TAG, "conv ai config: %s", config_buf);
-    volc_event_handler_t volc_event_handler = {
-        .on_volc_event = _on_volc_event,
-        .on_volc_conversation_status = _on_volc_conversation_status,
-        .on_volc_audio_data = _on_volc_audio_data,
-        .on_volc_video_data = _on_volc_video_data,
-        .on_volc_message_data = _on_volc_message_data,
+    // step 3: start byte rtc engine
+    byte_rtc_event_handler_t handler = {
+        .on_join_room_success       =   byte_rtc_on_join_room_success,
+        .on_room_error              =   byte_rtc_on_room_error,
+        .on_user_joined             =   byte_rtc_on_user_joined,
+        .on_user_offline            =   byte_rtc_on_user_offline,
+        .on_user_mute_audio         =   byte_rtc_on_user_mute_audio,
+        .on_user_mute_video         =   byte_rtc_on_user_mute_video,
+        .on_audio_data              =   byte_rtc_on_audio_data,
+        .on_video_data              =   byte_rtc_on_video_data,
+        .on_key_frame_gen_req       =   on_key_frame_gen_req,
+        .on_message_received        =   on_message_received,
+        .on_fini_notify             =   on_fini_notify,
     };
-    engine_ctx.volc_event_handler = volc_event_handler;
-    engine_ctx.player_pipeline = player_pipeline;
-    error = volc_create(&engine_ctx.engine, config_buf, &engine_ctx.volc_event_handler, &engine_ctx);
-    if (error != 0) {
-        ESP_LOGE(TAG, "Failed to create volc engine! error=%d", error);
-        return;
-    }
 
-    // step 3: start ai agent
-    volc_opt_t opt = {
-        .mode = VOLC_MODE_WS,
-        .bot_id = CONFIG_VOLC_BOT_ID
+    byte_rtc_engine_t engine = byte_rtc_create(room_info->app_id, &handler);
+    byte_rtc_set_log_level(engine, BYTE_RTC_LOG_LEVEL_ERROR);
+    byte_rtc_set_params(engine, "{\"debug\":{\"log_to_console\":1}}");
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM
+    byte_rtc_set_params(engine,"{\"audio\":{\"codec\":{\"internal\":{\"enable\":1}}}}");
+#endif
+
+    byte_rtc_init(engine);
+#ifdef CONFIG_AUDIO_CODEC_TYPE_OPUS
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_OPUS);
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_PCM) || defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G711A);
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_G722);
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
+    byte_rtc_set_audio_codec(engine, AUDIO_CODEC_TYPE_AACLC);
+#endif
+
+    // byte_rtc_set_video_codec(engine, VIDEO_CODEC_TYPE_H264); // 需要视频功能时设置
+
+    engine_context_t engine_context = {
+        .player_pipeline = player_pipeline,
+        .room_info = room_info
     };
-    error = volc_start(engine_ctx.engine, &opt);
-    if (error != 0) {
-        ESP_LOGE(TAG, "Failed to start volc engine! error=%d", error);
-        volc_destroy(engine_ctx.engine);
-        return;
-    }
+    byte_rtc_set_user_data(engine, &engine_context);
 
-    const int DEFAULT_READ_SIZE = 2560; // 80ms
+    // step 4: join room
+    byte_rtc_room_options_t options;
+    options.auto_subscribe_audio = 1; // 接收远端音频
+    options.auto_subscribe_video = 0; // 不接收远端视频
+    options.auto_publish_audio = 1;   // 发送音频
+    options.auto_publish_video = 0;   // 发送视频
+    byte_rtc_join_room(engine, room_info->room_id, room_info->uid, room_info->token, &options);
+
+    const int DEFAULT_READ_SIZE = recorder_pipeline_get_default_read_size(pipeline);
     uint8_t *audio_buffer = heap_caps_malloc(DEFAULT_READ_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!audio_buffer) {
         ESP_LOGE(TAG, "Failed to alloc audio buffer!");
         return;
     }
-    // step 4: start sending audio data
-    volc_audio_frame_info_t info = { 0 };
-    info.data_type = VOLC_AUDIO_DATA_TYPE_PCM;
-    info.commit = false;
+
+    // step 5: start sending audio data
     while (true) {
         int ret =  recorder_pipeline_read(pipeline, (char*) audio_buffer, DEFAULT_READ_SIZE);
-        if (ret == DEFAULT_READ_SIZE && is_ready) {
+        if (ret == DEFAULT_READ_SIZE && joined) {
             // push_audio data
-            volc_send_audio_data(engine_ctx.engine, audio_buffer, DEFAULT_READ_SIZE, &info);
+#ifdef RTC_DEMO_AUDIO_PIPELINE_CODEC_PCM
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCM};
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G711A)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_PCMA};
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_G722)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_G722};
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_AAC)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_AAC};
+#elif defined(CONFIG_AUDIO_CODEC_TYPE_OPUS)
+            audio_frame_info_t audio_frame_info = {.data_type = AUDIO_DATA_TYPE_OPUS};
+#endif
+            byte_rtc_send_audio_data(engine, room_info->room_id, audio_buffer, DEFAULT_READ_SIZE, &audio_frame_info);
         }
     }
 
-    // step 6: stop and destroy engine
-    volc_stop(engine_ctx.engine);
+    // step 6: leave room and destroy engine
+    byte_rtc_leave_room(engine, room_info->room_id);
     usleep(1000 * 1000);
-    volc_destroy(engine_ctx.engine);
+    byte_rtc_fini(engine);
+    while(!finished) {
+        usleep(1000 * 100);
+    }
+    byte_rtc_destroy(engine);
+    
+    // step 7: stop ai agent or it will not stop until 3 minutes
+    stop_voice_bot(room_info);
+    heap_caps_free(room_info);
 
-    // step 7: stop audio capture & play
+    // step 8: stop audio capture & play
     recorder_pipeline_close(pipeline);
     player_pipeline_close(player_pipeline);
     ESP_LOGI(TAG, "............. finished\n");
@@ -287,20 +432,14 @@ void app_main(void)
        return;
    }
 
-   // 初始化SNTP
-    initialize_sntp();
-    // 等待时间同步
-    wait_for_time_sync();
-
     audio_board_handle_t board_handle = audio_board_init();   
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
-    audio_hal_set_volume(board_handle->audio_hal, 50);
+    audio_hal_set_volume(board_handle->audio_hal, 80);
     ESP_LOGI(TAG, "Starting again!\n");
 
     // Allow other core to finish initialization
     vTaskDelay(pdMS_TO_TICKS(2000));
 
     // Create and start stats task
-    xTaskCreate(&conv_ai_task, "conv_ai_task", 8192, NULL, STATS_TASK_PRIO, NULL);
-    xTaskCreate(&sys_monitor_task, "sys_monitor_task", 4096, NULL, STATS_TASK_PRIO, NULL);
+    xTaskCreate(&byte_rtc_task, "byte_rtc_task", 8192, NULL, STATS_TASK_PRIO, NULL);
 }
