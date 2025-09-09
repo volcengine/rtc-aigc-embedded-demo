@@ -49,7 +49,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     --header 'Content-Type: application/json' \
     --header 'Authorization: af78e30${RTC_APP_ID}' \
     --data '{
-        "app_id": "66bb6632f55d550120fb5c94",
+        "app_id": "******",
         "room_id": "G711Abf410694b3a34a3aa980b6e85613200d",
         "task_id" : "bf410694b3a34a3aa980b6e85613200d"
     }'
@@ -61,7 +61,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     --header 'Content-Type: application/json' \
     --header 'Authorization: af78e30${RTC_APP_ID}' \
     --data '{
-        "app_id": "66bb6632f55d550120fb5c94",
+        "app_id": "******",
         "room_id": "G711Abf410694b3a34a3aa980b6e85613200d",
         "task_id" : "bf410694b3a34a3aa980b6e85613200d",
         "command": "interrupt"
@@ -72,7 +72,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     --header 'Content-Type: application/json' \
     --header 'Authorization: hehehe' \
     --data '{
-        "app_id": "66bb6632f55d550120fb5c94",
+        "app_id": "******",
         "room_id": "bf410694b3a34a3aa980b6e85613200d",
         "task_id" : "bf410694b3a34a3aa980b6e85613200d",
         "command": "function",

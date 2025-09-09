@@ -135,9 +135,9 @@
     ```shell
     curl --location 'http://127.0.0.1:8080/updatevoicechat' \
     --header 'Content-Type: application/json' \
-    --header 'Authorization: af78e3067*****' \
+    --header 'Authorization: ******' \
     --data '{
-        "app_id": "af78e3067******",
+        "app_id": "******",
         "room_id": "G711Abf4106*****",
         "task_id": "bf4106*****",
         "command": "function",
@@ -178,7 +178,7 @@
         "code": 200,
         "msg": "",
         "data": {
-            "app_id": "66b****",
+            "app_id": "******",
             "room_id": "G711Abf4*****",
             "task_id": "bf4*****",
             "command": "function",
@@ -199,7 +199,7 @@
     --header 'Content-Type: application/json' \
     --header 'Authorization: af78e30675*****' \
     --data '{
-        "app_id": "66b*****",
+        "app_id": "******",
         "room_id": "G711Abf4*****",
         "task_id": "bf4*****"
     }'
@@ -219,7 +219,7 @@
         "code": 200,
         "msg": "",
         "data": {
-            "app_id": "66b*****",
+            "app_id": "******",
             "room_id": "G711Abf4*****",
             "task_id": "bf4*****"
         }

@@ -15,7 +15,7 @@ endchoice
 
 config RTC_APPID
     string "RTC_APPID"
-    default "67582ac8******0174410bd1"
+    default "******"
     depends on VOLC_RTC_MODE
 
 config AIGENT_SERVER_HOST
