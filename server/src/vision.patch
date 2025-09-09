@@ -1,0 +1,109 @@
+diff --git a/server/src/RtcAigcService.py b/server/src/RtcAigcService.py
+index b866c3a..133d007 100644
+--- a/server/src/RtcAigcService.py
++++ b/server/src/RtcAigcService.py
+@@ -86,10 +86,13 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+             return
+         
+         if self.path == "/startvoicechat":
++            print("startvoicechat")
+             self.start_voice_chat(json_obj)
+         elif self.path == "/stopvoicechat":
++            print("stopvoicechat")
+             self.stop_voice_chat(json_obj)
+         elif self.path == "/updatevoicechat":
++            print("updatevoicechat")
+             self.update_voice_chat(json_obj)
+         else:
+             self.response_data(404, "path error, unknown path: " + self.path)
+@@ -143,6 +146,8 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+     def request_start_voice_chat(self, room_info, json_obj):
+         # request_body 内容含义请参考 https://www.volcengine.com/docs/6348/1404673
+         # 小模型 ASR，速度相对大模型 ASR 更快一些，识别精度低于大模型 ASR
++
++        print(json_obj)
+         
+         # 读取客户端传来的 end_point_id
+         if "end_point_id" in json_obj:
+@@ -272,6 +277,47 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+         if "fc_tools" in json_obj:
+             fc_tools = json_obj["fc_tools"]
+ 
++        # 读取客户端传来的 vision_enable
++        vision_enable = False
++        system_messages = "你的名字是小宁，性格幽默又善解人意。你在表达时需简明扼要，有自己的观点。"
++        if "vision_enable" in json_obj and json_obj["vision_enable"] == True:
++            vision_enable = True
++            system_messages = "# 角色                                                                                               \
++                        你是一个智能硬件小助手，能为客户提供情感陪伴和助手服务。                                                             \
++                        # 信息获取                                                                                                   \
++                        用户的语音会被转成文本提供给你，同时用户摄像头拍摄的视频会被转成图片发送给你，你可以结合这些图片感知用户的场景，识别各种目标。   \
++                        # 回复形式                                                                                                   \
++                        你的回复文本会被转成语音发送给用户。                                                                              \
++                        # 任务要求                                                                                                   \
++                        ## 情感陪伴                                                                                                  \
++                        - **态度友好**：对话语气要亲切、热情，让用户感受到温暖和关怀，展现出积极的陪伴态度。                                     \
++                        - **理解共情**：认真倾听用户的话语，理解用户的情感状态，对用户表达的喜怒哀乐给予共情回应，让用户感到被理解和支持。            \
++                        - **话题引导**：当对话陷入沉默或用户情绪低落时，主动发起有趣的话题，引导对话继续，帮助用户缓解负面情绪，提升积极情绪。         \
++                        ## 助手能力                                                                                                  \
++                        - **精准响应**：根据用户的需求和问题，结合图片信息，提供准确、有用的回答和解决方案。                                     \
++                        - **高效服务**：快速处理用户的请求，不拖延，确保及时满足用户的需求。                                                  \
++                        - **持续学习**：不断积累知识和经验，提升自身的服务能力，以便更好地为用户提供多样化的帮助。                                \
++                        # 交流原则                                                                                                   \
++                        - **自然流畅**：回复内容要符合日常交流的习惯，语言表达自然、通顺，避免出现生硬、机械的表述。                              \
++                        - **简洁明了**：回答问题要简洁直接，避免冗长复杂的语句，让用户能够快速理解你的意图。                                     \
++                        - **尊重隐私**：严格保护用户的个人信息和隐私，不泄露用户的任何敏感信息。"
++
++            # 读取客户端传来的 image_height
++            image_height = 720
++            if "image_height" in json_obj:
++                image_height = int(json_obj["image_height"])
++                if image_height > 1080:
++                    image_height = 1080
++
++            # 读取客户端传来的 image_detail
++            image_detail = "low"
++            if "image_detail_high" in json_obj and json_obj["image_detail_high"] == True:
++                image_detail = "high"
++
++            fc_tools = None
++        if "fc_tools" in json_obj:
++            fc_tools = json_obj["fc_tools"]
++
+         request_body = {
+             "AppId" : room_info["app_id"],                                      # RTC App id
+             "RoomId" : room_info["room_id"],                                    # RTC 房间 id
+@@ -313,6 +359,24 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+                     "HistoryLength" : 3,                                        # 非必填，大模型上下文长度，默认 3。
+                     # "Tools" : [...]                                           # 非必填，使用 Function calling 功能时，模型可以调用的工具列表 参考：https://www.volcengine.com/docs/6348/1359441
+                     # "VisionConfig" : {}                                       # 视觉理解能力配置。仅在推理点选择模型为 doubao-vision-pro 和 doubao-vision-lite 时生效。该功能使用说明参看 https://www.volcengine.com/docs/6348/1408245
++                    "VisionConfig" : {
++                        "Enable" : vision_enable,
++                        "SnapshotConfig": {
++                            "StreamType": 0,                                    # 截图流类型设置为主流
++                            "ImageDetail": image_detail,                        # 图片处理模式为低或高细节模式。
++                            "Height": image_height,                             # 截图高度为 video_height。
++                            "Interval": 200,                                    # 相邻截图之间的间隔时间为 1000 毫秒。
++                            "ImagesLimit": 1                                    # 最大发送图片数量为 1。
++                        },
++#                        "StorageConfig": {
++#                            "Type": 1,
++#                            "TosConfig": {
++#                                "AccountId": "2100329592",
++#                                "Region": 0,
++#                                "Bucket": "vision-debug"
++#                            }
++#                        }
++                    }
+                 },
+                 "SubtitleConfig" : {
+                     "DisableRTSSubtitle" : disable_rts_subtitle,                # 非必填，是否关闭房间内字幕回调，默认 false
+@@ -336,6 +400,8 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
+         if fc_tools != None and len(fc_tools) > 0 :
+             request_body["Config"]["LLMConfig"]["Tools"] = fc_tools
+ 
++        print(request_body)
++
+         request_body_str = json.dumps(request_body)
+         canonical_query_string = "Action=%s&Version=%s" % (RTC_API_START_VOICE_CHAT_ACTION, RTC_API_VERSION)
+         code, response = RtcApiRequester.request_rtc_api(RTC_API_HOST, "POST", "/", canonical_query_string, None, request_body_str, AK, SK)

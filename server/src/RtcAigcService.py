@@ -370,6 +370,7 @@ class RtcAigcHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     ],
                     "Prefill" : llm_prefill,                                    # 非必填, 将 ASR 中间结果提前送入大模型进行处理以降低延时。开启后会产生额外模型消耗。默认值 false
                     "HistoryLength" : 3,                                        # 非必填，大模型上下文长度，默认 3。
+                    # "ThinkingType": "disabled",                               # 关闭或开启大模型的深度思考能力。若你使用的是具备深度思考能力的模型，强烈建议通过该字段关闭模型的深度思考能力（disabled），以避免智能体回复耗时过长，影响对话的流畅性。参考：
                     # "Tools" : [...]                                           # 非必填，使用 Function calling 功能时，模型可以调用的工具列表 参考：https://www.volcengine.com/docs/6348/1359441
                     # "VisionConfig" : {}                                       # 视觉理解能力配置。仅在推理点选择模型为 doubao-vision-pro 和 doubao-vision-lite 时生效。该功能使用说明参看 https://www.volcengine.com/docs/6348/1408245
                     "VisionConfig" : {
